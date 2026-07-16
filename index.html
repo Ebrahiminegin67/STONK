@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infrastructure Health Network</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Inter',-apple-system,sans-serif; background:#f4f6f9; color:#1a2332; }
+
+        .header {
+            background:white; border-bottom:1px solid #e0e5ec;
+            padding:14px 28px; display:flex; align-items:center; justify-content:space-between;
+        }
+        .header-left { display:flex; align-items:center; gap:12px; }
+        .logo { width:32px;height:32px;background:#1d4ed8;border-radius:7px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:12px; }
+        .header h1 { font-size:16px; font-weight:700; }
+        .header-sub { font-size:11px; color:#64748b; }
+        .badge { background:#eef2ff;color:#4338ca;padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600; }
+
+        .grid {
+            display:grid; grid-template-columns:1fr 1fr;
+            grid-template-rows:420px auto; gap:14px;
+            padding:16px 28px; max-width:1500px; margin:0 auto;
+        }
+
+        .card { background:white;border-radius:9px;border:1px solid #e0e5ec;overflow:hidden; }
+        .card-h { padding:12px 16px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between; }
+        .card-h h3 { font-size:12px;font-weight:600; }
+        .card-h small { font-size:10px;color:#94a3b8; }
+
+        .chart-box { height:280px; }
+        .full-width { grid-column:1/-1; }
+        .chart-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; grid-column:1/-1; }
+
+        .legend {
+            position:absolute; bottom:10px; left:10px;
+            background:rgba(255,255,255,0.92); border-radius:5px;
+            padding:7px 10px; font-size:10px; border:1px solid #e0e5ec; line-height:1.8;
+        }
+        .lg-dot { display:inline-block; width:8px; height:8px; border-radius:50%; vertical-align:middle; margin-right:4px; }
+
+        .info-bar { grid-column:1/-1; display:flex; gap:12px; }
+        .info-item {
+            flex:1; background:white; border:1px solid #e0e5ec; border-radius:8px;
+            padding:12px 14px; text-align:center;
+        }
+        .info-num { font-size:18px; font-weight:700; }
+        .info-num.red { color:#dc2626; }
+        .info-num.green { color:#16a34a; }
+        .info-lbl { font-size:10px; color:#64748b; margin-top:2px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-left">
+        <div class="logo">IH</div>
+        <div><h1>Infrastructure Health Network</h1><div class="header-sub">Real-time road damage detection via 5G-connected vehicles</div></div>
+    </div>
+    <div class="badge">5G CONNECTED</div>
+</div>
+
+<div class="grid">
+    <!-- MAP -->
+    <div class="card" style="position:relative;">
+        <div class="card-h"><h3>Vehicle GPS Trace</h3><small>Color = vertical acceleration intensity</small></div>
+        <div id="map" style="height:calc(100% - 41px);"></div>
+        <div class="legend">
+            <div><span class="lg-dot" style="background:#16a34a"></span> Normal (&lt;0.1g)</div>
+            <div><span class="lg-dot" style="background:#f59e0b"></span> Moderate (0.1–0.3g)</div>
+            <div><span class="lg-dot" style="background:#dc2626"></span> Severe (&gt;0.3g)</div>
+        </div>
+    </div>
+
+    <!-- SPEED -->
+    <div class="card">
+        <div class="card-h"><h3>Speed Profile</h3><small>Vehicle speed over time</small></div>
+        <div style="padding:10px 14px;"><div id="chart-speed" class="chart-box"></div></div>
+    </div>
+
+    <!-- Info bar -->
+    <div class="info-bar">
+        <div class="info-item"><div class="info-num" id="i-samples">—</div><div class="info-lbl">Samples (100Hz)</div></div>
+        <div class="info-item"><div class="info-num" id="i-duration">—</div><div class="info-lbl">Duration (s)</div></div>
+        <div class="info-item"><div class="info-num" id="i-avgspeed">—</div><div class="info-lbl">Avg speed (km/h)</div></div>
+        <div class="info-item"><div class="info-num red" id="i-vspikes">—</div><div class="info-lbl">Vertical spikes</div></div>
+        <div class="info-item"><div class="info-num red" id="i-braking">—</div><div class="info-lbl">Hard braking events</div></div>
+        <div class="info-item"><div class="info-num green" id="i-normal">—</div><div class="info-lbl">Normal segments</div></div>
+    </div>
+
+    <!-- 3 accel charts -->
+    <div class="chart-grid">
+        <div class="card">
+            <div class="card-h"><h3>Vertical (Z-axis)</h3><small>Potholes, bumps — up/down</small></div>
+            <div style="padding:10px 14px;"><div id="chart-z" class="chart-box"></div></div>
+        </div>
+        <div class="card">
+            <div class="card-h"><h3>Lateral (Y-axis)</h3><small>Swerving, obstacles — left/right</small></div>
+            <div style="padding:10px 14px;"><div id="chart-y" class="chart-box"></div></div>
+        </div>
+        <div class="card">
+            <div class="card-h"><h3>Longitudinal (X-axis)</h3><small>Braking, acceleration — forward/back</small></div>
+            <div style="padding:10px 14px;"><div id="chart-x" class="chart-box"></div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+let map;
+
+function initMap() {
+    map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+        center: [18.072, 59.336],
+        zoom: 14,
+    });
+}
+
+function loadData() {
+    Papa.parse('dataset_single_vehicle_trace2.csv', {
+        download: true,
+        header: true,
+        dynamicTyping: true,
+        complete: function(results) {
+            const data = results.data.filter(r => r.timestamp_s !== null && r.accel_z_g !== null);
+            renderAll(data);
+        }
+    });
+}
+
+function renderAll(data) {
+    const ts = data.map(r => r.timestamp_s);
+    const ax = data.map(r => r.accel_x_g);
+    const ay = data.map(r => r.accel_y_g);
+    const az = data.map(r => r.accel_z_g);
+    const speed = data.map(r => r.speed_kmh);
+    const gpsPoints = data.filter(r => r.gps_lat && r.gps_lon);
+
+    // Info bar
+    document.getElementById('i-samples').textContent = data.length.toLocaleString();
+    document.getElementById('i-duration').textContent = ts[ts.length-1].toFixed(1);
+    const movingSpeed = speed.filter(s => s > 1);
+    const avgSpeed = movingSpeed.length ? movingSpeed.reduce((a,b) => a+b, 0) / movingSpeed.length : 0;
+    document.getElementById('i-avgspeed').textContent = avgSpeed.toFixed(1);
+
+    const vSpikes = az.filter(v => Math.abs(v) > 0.3).length;
+    const brakingEvents = ax.filter(v => v < -0.2).length;
+    const normalPct = ((data.length - vSpikes - brakingEvents) / data.length * 100).toFixed(0);
+    document.getElementById('i-vspikes').textContent = vSpikes;
+    document.getElementById('i-braking').textContent = brakingEvents;
+    document.getElementById('i-normal').textContent = normalPct + '%';
+
+    // MAP: GPS trace colored by vertical acceleration
+    if (gpsPoints.length > 1) {
+        map.on('load', () => {
+            // Build colored line segments
+            const features = [];
+            for (let i = 0; i < gpsPoints.length - 1; i++) {
+                const p1 = gpsPoints[i];
+                const p2 = gpsPoints[i+1];
+                const t1 = p1.timestamp_s;
+                const t2 = p2.timestamp_s;
+                const window = data.filter(r => r.timestamp_s >= t1 && r.timestamp_s < t2);
+                const maxZ = Math.max(...window.map(r => Math.abs(r.accel_z_g)));
+
+                let color = '#16a34a';
+                if (maxZ > 0.3) color = '#dc2626';
+                else if (maxZ > 0.1) color = '#f59e0b';
+
+                features.push({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: [[p1.gps_lon, p1.gps_lat], [p2.gps_lon, p2.gps_lat]]
+                    },
+                    properties: { color, maxZ }
+                });
+            }
+
+            // Add each color as separate layer for proper rendering
+            const colors = ['#16a34a', '#f59e0b', '#dc2626'];
+            const names = ['normal', 'moderate', 'severe'];
+            const widths = [3, 4, 5];
+
+            colors.forEach((c, ci) => {
+                const filtered = features.filter(f => f.properties.color === c);
+                if (!filtered.length) return;
+                map.addSource('trace-' + names[ci], {
+                    type: 'geojson',
+                    data: { type: 'FeatureCollection', features: filtered }
+                });
+                map.addLayer({
+                    id: 'trace-' + names[ci],
+                    type: 'line',
+                    source: 'trace-' + names[ci],
+                    paint: { 'line-color': c, 'line-width': widths[ci], 'line-opacity': 0.85 }
+                });
+            });
+
+            // Add markers for severe spikes
+            const severeMarkers = [];
+            for (let i = 0; i < gpsPoints.length - 1; i++) {
+                const p1 = gpsPoints[i];
+                const p2 = gpsPoints[i+1];
+                const t1 = p1.timestamp_s;
+                const t2 = p2.timestamp_s;
+                const window = data.filter(r => r.timestamp_s >= t1 && r.timestamp_s < t2);
+                const maxZ = Math.max(...window.map(r => Math.abs(r.accel_z_g)));
+                if (maxZ > 0.4) {
+                    severeMarkers.push({
+                        type: 'Feature',
+                        geometry: { type: 'Point', coordinates: [(p1.gps_lon+p2.gps_lon)/2, (p1.gps_lat+p2.gps_lat)/2] },
+                        properties: { label: maxZ.toFixed(2) + 'g' }
+                    });
+                }
+            }
+
+            if (severeMarkers.length) {
+                map.addSource('spikes', {
+                    type: 'geojson',
+                    data: { type: 'FeatureCollection', features: severeMarkers }
+                });
+                map.addLayer({
+                    id: 'spikes',
+                    type: 'circle',
+                    source: 'spikes',
+                    paint: { 'circle-color': '#dc2626', 'circle-radius': 7, 'circle-opacity': 0.8, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
+                });
+            }
+
+            // Fit map to trace
+            const lats = gpsPoints.map(p => p.gps_lat);
+            const lons = gpsPoints.map(p => p.gps_lon);
+            map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 40 });
+        });
+    }
+
+    // CHARTS
+    const cfg = { responsive: true, displayModeBar: false };
+    const font = { family: 'Inter', size: 10, color: '#64748b' };
+    const layoutBase = {
+        margin: {t:6, b:34, l:44, r:12}, font,
+        plot_bgcolor: 'white', paper_bgcolor: 'white',
+        xaxis: {title: 'Time (s)', gridcolor: '#f1f5f9', zeroline: false},
+        legend: {orientation: 'h', y: 1.12, x: 0.5, xanchor: 'center', font: {size: 9}},
+    };
+
+    Plotly.newPlot('chart-speed', [{
+        x: ts, y: speed, mode: 'lines', name: 'Speed',
+        line: {color: '#3b82f6', width: 1.5}
+    }], {...layoutBase, yaxis: {title: 'km/h', gridcolor: '#f1f5f9', zeroline: false}}, cfg);
+
+    Plotly.newPlot('chart-z', [{
+        x: ts, y: az, mode: 'lines', name: 'accel_z',
+        line: {color: '#dc2626', width: 1}
+    },{
+        x: [ts[0], ts[ts.length-1]], y: [0.3, 0.3], mode: 'lines', name: 'Threshold',
+        line: {color: '#f59e0b', width: 1, dash: 'dash'}
+    },{
+        x: [ts[0], ts[ts.length-1]], y: [-0.3, -0.3], mode: 'lines',
+        line: {color: '#f59e0b', width: 1, dash: 'dash'}, showlegend: false
+    }], {...layoutBase, yaxis: {title: 'g-force', gridcolor: '#f1f5f9', zeroline: true, zerolinecolor: '#e2e8f0'}}, cfg);
+
+    Plotly.newPlot('chart-y', [{
+        x: ts, y: ay, mode: 'lines', name: 'accel_y',
+        line: {color: '#f59e0b', width: 1}
+    }], {...layoutBase, yaxis: {title: 'g-force', gridcolor: '#f1f5f9', zeroline: true, zerolinecolor: '#e2e8f0'}}, cfg);
+
+    Plotly.newPlot('chart-x', [{
+        x: ts, y: ax, mode: 'lines', name: 'accel_x',
+        line: {color: '#8b5cf6', width: 1}
+    },{
+        x: [ts[0], ts[ts.length-1]], y: [-0.2, -0.2], mode: 'lines', name: 'Braking threshold',
+        line: {color: '#dc2626', width: 1, dash: 'dash'}
+    }], {...layoutBase, yaxis: {title: 'g-force', gridcolor: '#f1f5f9', zeroline: true, zerolinecolor: '#e2e8f0'}}, cfg);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initMap();
+    loadData();
+});
+</script>
+</body>
+</html>
