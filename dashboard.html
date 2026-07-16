@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infrastructure Health Network</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Inter',-apple-system,sans-serif; background:#f4f6f9; color:#1a2332; }
+
+        .header {
+            background:white; border-bottom:1px solid #e0e5ec;
+            padding:14px 28px; display:flex; align-items:center; justify-content:space-between;
+        }
+        .header-left { display:flex; align-items:center; gap:12px; }
+        .logo { width:32px;height:32px;background:#1d4ed8;border-radius:7px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:12px; }
+        .header h1 { font-size:16px; font-weight:700; }
+        .header-sub { font-size:11px; color:#64748b; }
+        .badge { background:#eef2ff;color:#4338ca;padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600; }
+
+
+
+        .grid {
+            display:grid; grid-template-columns:1fr 320px;
+            grid-template-rows:480px auto; gap:14px;
+            padding:16px 28px; max-width:1460px; margin:0 auto;
+        }
+
+        .card { background:white;border-radius:9px;border:1px solid #e0e5ec;overflow:hidden; }
+        .card-h { padding:12px 16px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between; }
+        .card-h h3 { font-size:12px;font-weight:600; }
+        .card-h small { font-size:10px;color:#94a3b8; }
+
+        .sidebar { grid-row:1;display:flex;flex-direction:column; }
+        .road-list { flex:1;overflow-y:auto; }
+        .road-item {
+            display:flex;align-items:center;gap:10px;padding:9px 16px;
+            border-bottom:1px solid #f5f7fa;cursor:pointer;transition:background 0.1s;
+        }
+        .road-item:hover,.road-item.active { background:#f0f7ff; }
+        .dot { width:8px;height:8px;border-radius:50%;flex-shrink:0; }
+        .dot.red { background:#dc2626; } .dot.orange { background:#f59e0b; } .dot.green { background:#16a34a; } .dot.purple { background:#8b5cf6; }
+        .r-name { font-size:11px;font-weight:500;flex:1; }
+        .r-sub { font-size:10px;color:#94a3b8; }
+        .r-pct { font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px; }
+        .r-pct.high { background:#fef2f2;color:#dc2626; }
+        .r-pct.med { background:#fffbeb;color:#d97706; }
+        .r-pct.ok { background:#f0fdf4;color:#16a34a; }
+
+        .controls { padding:12px 16px;background:#f8fafc;border-top:1px solid #e0e5ec; }
+        .controls h4 { font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px; }
+        .sl-row { margin-bottom:8px; }
+        .sl-lbl { display:flex;justify-content:space-between;margin-bottom:3px; }
+        .sl-lbl span { font-size:10px;color:#475569; }
+        .sl-val { font-weight:700;color:#1d4ed8; }
+        input[type="range"] { width:100%;height:3px;-webkit-appearance:none;appearance:none;background:#e2e8f0;border-radius:2px;outline:none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#3b82f6;cursor:pointer; }
+
+        .bottom { grid-column:1/-1; }
+        .detail-title { font-size:13px;font-weight:600;margin-bottom:10px; }
+        .chart-row { display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px; }
+        .chart-box { height:240px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-left">
+        <div class="logo">IH</div>
+        <div><h1>Infrastructure Health Network</h1><div class="header-sub">Real-time road monitoring via 5G-connected vehicles</div></div>
+    </div>
+    <div class="badge">5G CONNECTED</div>
+</div>
+
+
+
+<div class="grid">
+    <!-- MAP -->
+    <div class="card" style="grid-row:1;">
+        <div class="card-h"><h3>Stockholm — Road Network Status</h3><small>Click a road for details</small></div>
+        <div id="map" style="height:calc(100% - 41px);"></div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="card sidebar">
+        <div class="card-h"><h3>Road Status</h3><small id="road-count"></small></div>
+        <div class="road-list" id="road-list"></div>
+        <div class="controls">
+            <h4>Adjust Severity</h4>
+            <div class="sl-row">
+                <div class="sl-lbl"><span>Sveavägen — Pothole</span><span class="sl-val" id="v1">92%</span></div>
+                <input type="range" id="s1" min="0" max="100" value="92">
+            </div>
+            <div class="sl-row">
+                <div class="sl-lbl"><span>Sveavägen — Fallen tree</span><span class="sl-val" id="v2">78%</span></div>
+                <input type="range" id="s2" min="0" max="100" value="78">
+            </div>
+            <div class="sl-row">
+                <div class="sl-lbl"><span>Kungsgatan — Pothole</span><span class="sl-val" id="v3">85%</span></div>
+                <input type="range" id="s3" min="0" max="100" value="85">
+            </div>
+        </div>
+    </div>
+
+    <!-- DETAIL CHARTS -->
+    <div class="bottom">
+        <div class="detail-title" id="detail-title">Select a road to view detailed analysis</div>
+        <div class="chart-row">
+            <div class="card">
+                <div class="card-h"><h3>Vertical Detection</h3><small>% of vehicles detecting downward impact</small></div>
+                <div style="padding:10px 14px;"><div id="cv" class="chart-box"></div></div>
+            </div>
+            <div class="card">
+                <div class="card-h"><h3>Lateral Detection</h3><small>Lane deviation from expected path (cm)</small></div>
+                <div style="padding:10px 14px;"><div id="cl" class="chart-box"></div></div>
+            </div>
+            <div class="card">
+                <div class="card-h"><h3>Braking Detection</h3><small>% of vehicles with hard braking event (deceleration)</small></div>
+                <div style="padding:10px 14px;"><div id="cb" class="chart-box"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════════
+const SEG = 5;
+let selected = 1;
+
+const roads = [
+    { name:"Kungsgatan", len:500,
+      // East-west: from west of Hötorget to Stureplan
+      coords:[[59.3340,18.0540],[59.3343,18.0580],[59.3345,18.0627],[59.3348,18.0670],[59.3350,18.0730]],
+      anomalies:[{pos:200,type:"Pothole",det:"vertical",sev:0.85}] },
+    { name:"Sveavägen", len:700,
+      // North-south: from Sergels torg up to Odenplan
+      coords:[[59.3327,18.0649],[59.3345,18.0627],[59.3370,18.0600],[59.3400,18.0572],[59.3430,18.0548],[59.3460,18.0530]],
+      anomalies:[{pos:350,type:"Large pothole",det:"vertical",sev:0.92},{pos:550,type:"Fallen tree",det:"lateral",sev:0.78}] },
+    { name:"Birger Jarlsgatan", len:550,
+      // SW to NE: from Nybroplan/Norrmalmstorg up past Stureplan and Humlegården
+      coords:[[59.3332,18.0745],[59.3345,18.0735],[59.3352,18.0730],[59.3370,18.0710],[59.3390,18.0680],[59.3420,18.0650]],
+      anomalies:[{pos:120,type:"Sunken manhole",det:"vertical",sev:0.70},{pos:400,type:"Construction debris",det:"lateral",sev:0.62}] },
+    { name:"Vasagatan", len:400,
+      // North-south: alongside Central Station
+      coords:[[59.3295,18.0600],[59.3315,18.0590],[59.3335,18.0578],[59.3355,18.0567],[59.3380,18.0555]],
+      anomalies:[{pos:250,type:"Sudden braking zone",det:"braking",sev:0.72}] },
+    { name:"Drottninggatan", len:600,
+      // North-south: from near Riksdagen up past Sergels torg
+      coords:[[59.3270,18.0680],[59.3295,18.0665],[59.3325,18.0645],[59.3355,18.0628],[59.3385,18.0610],[59.3420,18.0600]],
+      anomalies:[] },
+];
+
+// ══════════════════════════════════════════════════════════════
+// LEAFLET MAP
+// ══════════════════════════════════════════════════════════════
+let leafletMap, roadLayers = [], markerLayers = [];
+
+function initMap() {
+    leafletMap = L.map('map').setView([59.336, 18.072], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(leafletMap);
+    renderMapOverlays();
+}
+
+function renderMapOverlays() {
+    // Clear old layers
+    roadLayers.forEach(l => leafletMap.removeLayer(l));
+    markerLayers.forEach(l => leafletMap.removeLayer(l));
+    roadLayers = [];
+    markerLayers = [];
+
+    roads.forEach((road, ri) => {
+        const hasIssue = road.anomalies.some(a => a.sev > 0.05);
+        const hasLateral = road.anomalies.some(a => a.det === 'lateral' && a.sev > 0.05);
+        const hasBraking = road.anomalies.some(a => a.det === 'braking' && a.sev > 0.05);
+        const color = hasIssue ? (hasLateral ? '#f59e0b' : hasBraking ? '#8b5cf6' : '#dc2626') : '#16a34a';
+        const weight = hasIssue ? 5 : 3;
+        const opacity = hasIssue ? 0.8 : 0.4;
+
+        const line = L.polyline(road.coords, { color, weight, opacity }).addTo(leafletMap);
+        line.bindTooltip(road.name, { sticky: true });
+        line.on('click', () => selectRoad(ri));
+        roadLayers.push(line);
+
+        // Anomaly markers
+        for (const a of road.anomalies) {
+            if (a.sev < 0.05) continue;
+            const segIdx = Math.min(Math.floor(a.pos / SEG), road.coords.length - 1);
+            // Interpolate position
+            const t = a.pos / road.len;
+            const idx = t * (road.coords.length - 1);
+            const lo = Math.floor(idx), hi = Math.min(lo + 1, road.coords.length - 1);
+            const f = idx - lo;
+            const lat = road.coords[lo][0] * (1-f) + road.coords[hi][0] * f;
+            const lon = road.coords[lo][1] * (1-f) + road.coords[hi][1] * f;
+
+            const mColor = a.det === 'vertical' ? '#dc2626' : a.det === 'lateral' ? '#f59e0b' : '#8b5cf6';
+            const marker = L.circleMarker([lat, lon], {
+                radius: 6 + a.sev * 6,
+                color: mColor,
+                fillColor: mColor,
+                fillOpacity: 0.7,
+                weight: 2,
+            }).addTo(leafletMap);
+            marker.bindTooltip(`${road.name}<br>${a.type}: ${(a.sev*100).toFixed(0)}%`);
+            marker.on('click', () => selectRoad(ri));
+            markerLayers.push(marker);
+        }
+    });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ROAD LIST
+// ══════════════════════════════════════════════════════════════
+function renderList() {
+    const el = document.getElementById('road-list');
+    let html = '';
+    roads.forEach((r, i) => {
+        const active = r.anomalies.filter(a => a.sev > 0.05);
+        const worst = active.length ? Math.max(...active.map(a => a.sev)) : 0;
+        const dotClass = active.length ? (active.some(a=>a.det==='vertical') ? 'red' : active.some(a=>a.det==='lateral') ? 'orange' : 'purple') : 'green';
+        const pctClass = worst > 0.7 ? 'high' : worst > 0.3 ? 'med' : 'ok';
+        const label = active.length ? active.map(a => a.type).join(', ') : 'No issues';
+        html += `<div class="road-item${i===selected?' active':''}" onclick="selectRoad(${i})">
+            <div class="dot ${dotClass}"></div>
+            <div style="flex:1"><div class="r-name">${r.name}</div><div class="r-sub">${label}</div></div>
+            <span class="r-pct ${pctClass}">${active.length ? (worst*100).toFixed(0)+'%' : 'OK'}</span>
+        </div>`;
+    });
+    el.innerHTML = html;
+    document.getElementById('road-count').textContent = roads.length + ' roads monitored';
+}
+
+// ══════════════════════════════════════════════════════════════
+// DETAIL CHARTS
+// ══════════════════════════════════════════════════════════════
+function segData(road) {
+    const n = Math.floor(road.len / SEG);
+    const pos = Array.from({length:n}, (_, i) => i * SEG);
+    const bv = pos.map((_, i) => 0.01 + ((i * road.name.length * 7) % 100) / 5000);
+    const cv = [...bv];
+    const bl = pos.map((_, i) => 6 + ((i * road.name.length * 3) % 100) / 12);
+    const cl = [...bl];
+    const bb = pos.map((_, i) => 0.02 + ((i * road.name.length * 5) % 100) / 4000);
+    const cbr = [...bb];
+    for (const a of road.anomalies) {
+        const s = Math.min(Math.floor(a.pos / SEG), n - 1);
+        if (a.det === "vertical") {
+            cv[s] = a.sev;
+            if (s > 0) cv[s-1] = Math.max(cv[s-1], 0.18);
+            if (s < n-1) cv[s+1] = Math.max(cv[s+1], 0.18);
+        } else if (a.det === "lateral") {
+            cl[s] = 80 + a.sev * 70;
+            if (s > 1) { cl[s-1] = 45; cl[s-2] = 25; }
+            if (s < n-2) { cl[s+1] = 45; cl[s+2] = 25; }
+        } else if (a.det === "braking") {
+            cbr[s] = a.sev;
+            if (s > 1) { cbr[s-1] = Math.max(cbr[s-1], 0.30); cbr[s-2] = Math.max(cbr[s-2], 0.12); }
+            if (s < n-2) { cbr[s+1] = Math.max(cbr[s+1], 0.30); cbr[s+2] = Math.max(cbr[s+2], 0.12); }
+        }
+    }
+    return { pos, bv, cv, bl, cl, bb, cbr };
+}
+
+function renderDetail() {
+    const road = roads[selected];
+    document.getElementById('detail-title').textContent = road.name + ' — Detailed Analysis';
+    const d = segData(road);
+    const cfg = { responsive: true, displayModeBar: false };
+    const font = { family: 'Inter', size: 10, color: '#64748b' };
+
+    Plotly.newPlot('cv', [
+        { x:d.pos, y:d.bv.map(v=>v*100), mode:'lines', name:'Baseline (1 year)',
+          line:{color:'#93c5fd',width:1.5,dash:'dot'}, fill:'tozeroy', fillcolor:'rgba(147,197,253,0.06)' },
+        { x:d.pos, y:d.cv.map(v=>v*100), mode:'lines', name:'Current week',
+          line:{color:'#dc2626',width:2.5} },
+    ], {
+        margin:{t:6,b:34,l:40,r:12}, font,
+        xaxis:{title:'Position (m)',gridcolor:'#f1f5f9',zeroline:false},
+        yaxis:{title:'Spike rate (%)',gridcolor:'#f1f5f9',zeroline:false},
+        plot_bgcolor:'white', paper_bgcolor:'white',
+        legend:{orientation:'h',y:1.15,x:0.5,xanchor:'center',font:{size:9}},
+    }, cfg);
+
+    Plotly.newPlot('cl', [
+        { x:d.pos, y:d.bl, mode:'lines', name:'Baseline (1 year)',
+          line:{color:'#a5f3fc',width:1.5,dash:'dot'}, fill:'tozeroy', fillcolor:'rgba(165,243,252,0.06)' },
+        { x:d.pos, y:d.cl, mode:'lines', name:'Current week',
+          line:{color:'#f59e0b',width:2.5} },
+    ], {
+        margin:{t:6,b:34,l:40,r:12}, font,
+        xaxis:{title:'Position (m)',gridcolor:'#f1f5f9',zeroline:false},
+        yaxis:{title:'Deviation (cm)',gridcolor:'#f1f5f9',zeroline:false},
+        plot_bgcolor:'white', paper_bgcolor:'white',
+        legend:{orientation:'h',y:1.15,x:0.5,xanchor:'center',font:{size:9}},
+    }, cfg);
+
+    Plotly.newPlot('cb', [
+        { x:d.pos, y:d.bb.map(v=>v*100), mode:'lines', name:'Baseline (1 year)',
+          line:{color:'#c4b5fd',width:1.5,dash:'dot'}, fill:'tozeroy', fillcolor:'rgba(196,181,253,0.06)' },
+        { x:d.pos, y:d.cbr.map(v=>v*100), mode:'lines', name:'Current week',
+          line:{color:'#8b5cf6',width:2.5} },
+    ], {
+        margin:{t:6,b:34,l:40,r:12}, font,
+        xaxis:{title:'Position (m)',gridcolor:'#f1f5f9',zeroline:false},
+        yaxis:{title:'Hard braking (%)',gridcolor:'#f1f5f9',zeroline:false},
+        plot_bgcolor:'white', paper_bgcolor:'white',
+        legend:{orientation:'h',y:1.15,x:0.5,xanchor:'center',font:{size:9}},
+    }, cfg);
+}
+
+// ══════════════════════════════════════════════════════════════
+// SELECT + SLIDERS + INIT
+// ══════════════════════════════════════════════════════════════
+function selectRoad(idx) {
+    selected = idx;
+    renderList();
+    renderDetail();
+}
+
+function setupSliders() {
+    [{s:'s1',v:'v1',ri:1,ai:0},{s:'s2',v:'v2',ri:1,ai:1},{s:'s3',v:'v3',ri:0,ai:0}].forEach(c => {
+        document.getElementById(c.s).addEventListener('input', function() {
+            document.getElementById(c.v).textContent = this.value + '%';
+            roads[c.ri].anomalies[c.ai].sev = this.value / 100;
+            renderMapOverlays();
+            renderList();
+            renderDetail();
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initMap();
+    renderList();
+    renderDetail();
+    setupSliders();
+});
+</script>
+</body>
+</html>
