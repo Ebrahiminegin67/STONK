@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -23,10 +22,12 @@
         .header-sub { font-size:11px; color:#64748b; }
         .badge { background:#eef2ff;color:#4338ca;padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600; }
 
+
+
         .grid {
-            display:grid; grid-template-columns:1fr 1fr;
-            grid-template-rows:420px auto; gap:14px;
-            padding:16px 28px; max-width:1500px; margin:0 auto;
+            display:grid; grid-template-columns:1fr 320px;
+            grid-template-rows:480px auto; gap:14px;
+            padding:16px 28px; max-width:1460px; margin:0 auto;
         }
 
         .card { background:white;border-radius:9px;border:1px solid #e0e5ec;overflow:hidden; }
@@ -34,26 +35,35 @@
         .card-h h3 { font-size:12px;font-weight:600; }
         .card-h small { font-size:10px;color:#94a3b8; }
 
-        .chart-box { height:280px; }
-        .full-width { grid-column:1/-1; }
-        .chart-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; grid-column:1/-1; }
-
-        .legend {
-            position:absolute; bottom:10px; left:10px;
-            background:rgba(255,255,255,0.92); border-radius:5px;
-            padding:7px 10px; font-size:10px; border:1px solid #e0e5ec; line-height:1.8;
+        .sidebar { grid-row:1;display:flex;flex-direction:column; }
+        .road-list { flex:1;overflow-y:auto; }
+        .road-item {
+            display:flex;align-items:center;gap:10px;padding:9px 16px;
+            border-bottom:1px solid #f5f7fa;cursor:pointer;transition:background 0.1s;
         }
-        .lg-dot { display:inline-block; width:8px; height:8px; border-radius:50%; vertical-align:middle; margin-right:4px; }
+        .road-item:hover,.road-item.active { background:#f0f7ff; }
+        .dot { width:8px;height:8px;border-radius:50%;flex-shrink:0; }
+        .dot.red { background:#dc2626; } .dot.orange { background:#f59e0b; } .dot.green { background:#16a34a; } .dot.purple { background:#8b5cf6; }
+        .r-name { font-size:11px;font-weight:500;flex:1; }
+        .r-sub { font-size:10px;color:#94a3b8; }
+        .r-pct { font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px; }
+        .r-pct.high { background:#fef2f2;color:#dc2626; }
+        .r-pct.med { background:#fffbeb;color:#d97706; }
+        .r-pct.ok { background:#f0fdf4;color:#16a34a; }
 
-        .info-bar { grid-column:1/-1; display:flex; gap:12px; }
-        .info-item {
-            flex:1; background:white; border:1px solid #e0e5ec; border-radius:8px;
-            padding:12px 14px; text-align:center;
-        }
-        .info-num { font-size:18px; font-weight:700; }
-        .info-num.red { color:#dc2626; }
-        .info-num.green { color:#16a34a; }
-        .info-lbl { font-size:10px; color:#64748b; margin-top:2px; }
+        .controls { padding:12px 16px;background:#f8fafc;border-top:1px solid #e0e5ec; }
+        .controls h4 { font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px; }
+        .sl-row { margin-bottom:8px; }
+        .sl-lbl { display:flex;justify-content:space-between;margin-bottom:3px; }
+        .sl-lbl span { font-size:10px;color:#475569; }
+        .sl-val { font-weight:700;color:#1d4ed8; }
+        input[type="range"] { width:100%;height:3px;-webkit-appearance:none;appearance:none;background:#e2e8f0;border-radius:2px;outline:none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#3b82f6;cursor:pointer; }
+
+        .bottom { grid-column:1/-1; }
+        .detail-title { font-size:13px;font-weight:600;margin-bottom:10px; }
+        .chart-row { display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px; }
+        .chart-box { height:240px; }
     </style>
 </head>
 <body>
@@ -61,230 +71,370 @@
 <div class="header">
     <div class="header-left">
         <div class="logo">IH</div>
-        <div><h1>Infrastructure Health Network</h1><div class="header-sub">Real-time road damage detection via 5G-connected vehicles</div></div>
+        <div><h1>Infrastructure Health Network</h1><div class="header-sub">Real-time road monitoring via 5G-connected vehicles</div></div>
     </div>
     <div class="badge">5G CONNECTED</div>
 </div>
 
+
+
 <div class="grid">
     <!-- MAP -->
-    <div class="card" style="position:relative;">
-        <div class="card-h"><h3>Vehicle GPS Trace</h3><small>Color = vertical acceleration intensity</small></div>
+    <div class="card" style="grid-row:1;">
+        <div class="card-h"><h3>Stockholm — Road Network Status</h3><small>Click a road for details</small></div>
         <div id="map" style="height:calc(100% - 41px);"></div>
-        <div class="legend">
-            <div><span class="lg-dot" style="background:#16a34a"></span> Normal (&lt;0.1g)</div>
-            <div><span class="lg-dot" style="background:#f59e0b"></span> Moderate (0.1–0.3g)</div>
-            <div><span class="lg-dot" style="background:#dc2626"></span> Severe (&gt;0.3g)</div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="card sidebar">
+        <div class="card-h"><h3>Road Status</h3><small id="road-count"></small></div>
+        <div class="road-list" id="road-list"></div>
+        <div class="controls">
+            <h4>Adjust Severity</h4>
+            <div class="sl-row">
+                <div class="sl-lbl"><span>Sveavägen — Pothole</span><span class="sl-val" id="v1">92%</span></div>
+                <input type="range" id="s1" min="0" max="100" value="92">
+            </div>
+            <div class="sl-row">
+                <div class="sl-lbl"><span>Sveavägen — Fallen tree</span><span class="sl-val" id="v2">78%</span></div>
+                <input type="range" id="s2" min="0" max="100" value="78">
+            </div>
+            <div class="sl-row">
+                <div class="sl-lbl"><span>Kungsgatan — Pothole</span><span class="sl-val" id="v3">85%</span></div>
+                <input type="range" id="s3" min="0" max="100" value="85">
+            </div>
         </div>
     </div>
 
-    <!-- SPEED -->
-    <div class="card">
-        <div class="card-h"><h3>Speed Profile</h3><small>Vehicle speed over time</small></div>
-        <div style="padding:10px 14px;"><div id="chart-speed" class="chart-box"></div></div>
-    </div>
-
-    <!-- Info bar -->
-    <div class="info-bar">
-        <div class="info-item"><div class="info-num" id="i-samples">—</div><div class="info-lbl">Samples (100Hz)</div></div>
-        <div class="info-item"><div class="info-num" id="i-duration">—</div><div class="info-lbl">Duration (s)</div></div>
-        <div class="info-item"><div class="info-num" id="i-avgspeed">—</div><div class="info-lbl">Avg speed (km/h)</div></div>
-        <div class="info-item"><div class="info-num red" id="i-vspikes">—</div><div class="info-lbl">Vertical spikes</div></div>
-        <div class="info-item"><div class="info-num red" id="i-braking">—</div><div class="info-lbl">Hard braking events</div></div>
-        <div class="info-item"><div class="info-num green" id="i-normal">—</div><div class="info-lbl">Normal segments</div></div>
-    </div>
-
-    <!-- 3 accel charts -->
-    <div class="chart-grid">
-        <div class="card">
-            <div class="card-h"><h3>Vertical (Z-axis)</h3><small>Potholes, bumps — up/down</small></div>
-            <div style="padding:10px 14px;"><div id="chart-z" class="chart-box"></div></div>
-        </div>
-        <div class="card">
-            <div class="card-h"><h3>Lateral (Y-axis)</h3><small>Swerving, obstacles — left/right</small></div>
-            <div style="padding:10px 14px;"><div id="chart-y" class="chart-box"></div></div>
-        </div>
-        <div class="card">
-            <div class="card-h"><h3>Longitudinal (X-axis)</h3><small>Braking, acceleration — forward/back</small></div>
-            <div style="padding:10px 14px;"><div id="chart-x" class="chart-box"></div></div>
+    <!-- DETAIL CHARTS -->
+    <div class="bottom">
+        <div class="detail-title" id="detail-title">Select a road to view detailed analysis</div>
+        <div class="chart-row">
+            <div class="card">
+                <div class="card-h"><h3>Vertical Detection</h3><small>% of vehicles detecting downward impact</small></div>
+                <div style="padding:10px 14px;"><div id="cv" class="chart-box"></div></div>
+            </div>
+            <div class="card">
+                <div class="card-h"><h3>Lateral Detection</h3><small>Lane deviation from expected path (cm)</small></div>
+                <div style="padding:10px 14px;"><div id="cl" class="chart-box"></div></div>
+            </div>
+            <div class="card">
+                <div class="card-h"><h3>Braking Detection</h3><small>% of vehicles with hard braking event (deceleration)</small></div>
+                <div style="padding:10px 14px;"><div id="cb" class="chart-box"></div></div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
+// ══════════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════════
+const SEG = 5;
+let selected = 1;
+
+const roads = [
+    { name:"Kungsgatan", len:500,
+      coords:[[59.335571,18.063669],[59.335656,18.064047],[59.335752,18.064468],[59.335836,18.065054],[59.335882,18.065737],[59.335925,18.066665],[59.335993,18.068122],[59.336012,18.068533],[59.33611,18.070658],[59.336128,18.07098]],
+      anomalies:[{pos:200,type:"Pothole",det:"vertical",sev:0.85}] },
+    { name:"Sveavägen", len:700,
+      coords:[[59.337895,18.061206],[59.340436,18.058829],[59.343881,18.055599],[59.344686,18.054731],[59.345458,18.054075],[59.346362,18.053201],[59.346826,18.052381],[59.347567,18.051959],[59.348158,18.051408],[59.34968,18.050417]],
+      anomalies:[{pos:350,type:"Large pothole",det:"vertical",sev:0.92},{pos:550,type:"Fallen tree",det:"lateral",sev:0.78}] },
+    { name:"Birger Jarlsgatan", len:550,
+      coords:[[59.333742,18.075049],[59.341307,18.065251],[59.342818,18.063657],[59.343939,18.062845],[59.345523,18.062563],[59.346335,18.061799],[59.348051,18.060471],[59.349506,18.058982]],
+      anomalies:[{pos:120,type:"Sunken manhole",det:"vertical",sev:0.70},{pos:400,type:"Construction debris",det:"lateral",sev:0.62}] },
+    { name:"Vasagatan", len:400,
+      coords:[[59.328719,18.061289],[59.329858,18.060253],[59.331309,18.058376],[59.332137,18.05625],[59.332982,18.056882],[59.334902,18.055414],[59.33541,18.055033]],
+      anomalies:[{pos:250,type:"Sudden braking zone",det:"braking",sev:0.72}] },
+    { name:"Drottninggatan", len:600,
+      coords:[[59.328456,18.066819],[59.329524,18.065754],[59.330703,18.06458],[59.331866,18.063413],[59.33981,18.055533],[59.34047,18.054881],[59.340944,18.053474],[59.341062,18.052937]],
+      anomalies:[] },
+];
+
+// ══════════════════════════════════════════════════════════════
+// MAPLIBRE GL MAP
+// ══════════════════════════════════════════════════════════════
+// Real vehicle trace data (from dataset_single_vehicle_trace2.csv)
+const traceData = [{"lat":59.3327,"lon":18.064906,"spd":0.1,"z":0.022,"x":0.228,"y":0.044},{"lat":59.332685,"lon":18.064913,"spd":0.0,"z":0.026,"x":0.313,"y":0.044},{"lat":59.332719,"lon":18.064927,"spd":5.8,"z":0.038,"x":0.349,"y":0.048},{"lat":59.332745,"lon":18.064911,"spd":13.1,"z":0.057,"x":0.414,"y":0.054},{"lat":59.332813,"lon":18.064974,"spd":20.7,"z":0.069,"x":0.402,"y":0.056},{"lat":59.332868,"lon":18.065125,"spd":28.5,"z":0.09,"x":0.358,"y":0.061},{"lat":59.332922,"lon":18.06518,"spd":36.0,"z":0.106,"x":0.3,"y":0.072},{"lat":59.333037,"lon":18.065337,"spd":40.7,"z":0.16,"x":0.226,"y":0.061},{"lat":59.333114,"lon":18.065403,"spd":42.2,"z":0.11,"x":0.214,"y":0.078},{"lat":59.33318,"lon":18.065673,"spd":43.5,"z":0.154,"x":0.177,"y":0.063},{"lat":59.33324,"lon":18.065654,"spd":42.3,"z":0.123,"x":0.166,"y":0.072},{"lat":59.333385,"lon":18.065838,"spd":40.7,"z":0.118,"x":0.16,"y":0.067},{"lat":59.333459,"lon":18.066008,"spd":40.4,"z":0.118,"x":0.177,"y":0.069},{"lat":59.333489,"lon":18.06607,"spd":41.4,"z":0.115,"x":0.177,"y":0.068},{"lat":59.333588,"lon":18.066122,"spd":40.5,"z":0.113,"x":0.19,"y":0.069},{"lat":59.333658,"lon":18.066252,"spd":40.6,"z":0.095,"x":0.182,"y":0.064},{"lat":59.33375,"lon":18.066228,"spd":41.5,"z":0.144,"x":0.185,"y":0.071},{"lat":59.333888,"lon":18.066389,"spd":42.9,"z":0.125,"x":0.203,"y":0.065},{"lat":59.333949,"lon":18.066611,"spd":42.1,"z":0.309,"x":0.185,"y":0.071},{"lat":59.334018,"lon":18.066704,"spd":42.5,"z":0.102,"x":0.204,"y":0.073},{"lat":59.334135,"lon":18.066798,"spd":43.2,"z":0.145,"x":0.161,"y":0.069},{"lat":59.334223,"lon":18.066967,"spd":42.5,"z":0.159,"x":0.201,"y":0.081},{"lat":59.334322,"lon":18.067059,"spd":41.6,"z":0.105,"x":0.179,"y":0.067},{"lat":59.334392,"lon":18.067161,"spd":42.3,"z":0.168,"x":0.163,"y":0.074},{"lat":59.334478,"lon":18.067365,"spd":41.3,"z":0.125,"x":0.162,"y":0.073},{"lat":59.334531,"lon":18.067382,"spd":42.7,"z":0.136,"x":0.176,"y":0.074},{"lat":59.334636,"lon":18.067586,"spd":41.6,"z":0.104,"x":0.187,"y":0.064},{"lat":59.33472,"lon":18.067684,"spd":41.8,"z":0.124,"x":0.167,"y":0.073},{"lat":59.334754,"lon":18.067852,"spd":42.1,"z":0.109,"x":0.193,"y":0.066},{"lat":59.3349,"lon":18.067889,"spd":41.7,"z":0.142,"x":0.177,"y":0.068},{"lat":59.334936,"lon":18.067974,"spd":39.8,"z":0.124,"x":0.124,"y":0.127},{"lat":59.335067,"lon":18.068131,"spd":38.2,"z":0.107,"x":0.127,"y":0.195},{"lat":59.335109,"lon":18.068277,"spd":37.1,"z":0.117,"x":0.155,"y":0.209},{"lat":59.335164,"lon":18.068429,"spd":32.0,"z":0.087,"x":0.142,"y":0.203},{"lat":59.335206,"lon":18.068518,"spd":27.0,"z":0.068,"x":0.172,"y":0.177},{"lat":59.335244,"lon":18.068568,"spd":26.3,"z":0.091,"x":0.216,"y":0.123},{"lat":59.335294,"lon":18.068672,"spd":27.7,"z":0.093,"x":0.293,"y":0.061},{"lat":59.335369,"lon":18.068818,"spd":29.6,"z":0.083,"x":0.351,"y":0.061},{"lat":59.335378,"lon":18.068962,"spd":33.6,"z":0.088,"x":0.332,"y":0.069},{"lat":59.335467,"lon":18.069081,"spd":40.8,"z":0.135,"x":0.333,"y":0.062},{"lat":59.335587,"lon":18.069248,"spd":46.4,"z":0.152,"x":0.298,"y":0.066},{"lat":59.335602,"lon":18.069427,"spd":47.6,"z":0.138,"x":0.242,"y":0.066},{"lat":59.335697,"lon":18.069616,"spd":51.5,"z":0.11,"x":0.186,"y":0.074},{"lat":59.335796,"lon":18.069803,"spd":49.5,"z":0.114,"x":0.178,"y":0.074},{"lat":59.335907,"lon":18.069935,"spd":50.4,"z":0.121,"x":0.21,"y":0.078},{"lat":59.335972,"lon":18.070094,"spd":49.3,"z":0.785,"x":0.207,"y":0.126},{"lat":59.336014,"lon":18.070313,"spd":50.2,"z":0.116,"x":0.186,"y":0.065},{"lat":59.336106,"lon":18.070518,"spd":48.7,"z":0.126,"x":0.163,"y":0.075},{"lat":59.336173,"lon":18.070755,"spd":51.2,"z":0.128,"x":0.18,"y":0.061},{"lat":59.336282,"lon":18.070901,"spd":48.2,"z":0.122,"x":0.195,"y":0.064},{"lat":59.336335,"lon":18.071109,"spd":48.9,"z":0.13,"x":0.185,"y":0.077},{"lat":59.336457,"lon":18.071292,"spd":51.6,"z":0.112,"x":0.219,"y":0.068},{"lat":59.336455,"lon":18.071498,"spd":52.2,"z":0.118,"x":0.18,"y":0.07},{"lat":59.336592,"lon":18.071644,"spd":49.4,"z":0.097,"x":0.179,"y":0.074},{"lat":59.336675,"lon":18.071817,"spd":51.2,"z":0.124,"x":0.17,"y":0.066},{"lat":59.336754,"lon":18.071859,"spd":51.5,"z":0.157,"x":0.187,"y":0.08},{"lat":59.336782,"lon":18.072239,"spd":50.4,"z":0.178,"x":0.162,"y":0.068},{"lat":59.336928,"lon":18.07228,"spd":49.5,"z":0.132,"x":0.195,"y":0.067},{"lat":59.336991,"lon":18.072606,"spd":51.5,"z":0.174,"x":0.193,"y":0.066},{"lat":59.337077,"lon":18.072826,"spd":49.8,"z":0.165,"x":0.178,"y":0.07},{"lat":59.337177,"lon":18.072966,"spd":50.1,"z":0.12,"x":0.187,"y":0.067},{"lat":59.337211,"lon":18.073176,"spd":47.7,"z":0.202,"x":0.183,"y":0.07},{"lat":59.337336,"lon":18.073327,"spd":49.4,"z":0.328,"x":0.191,"y":0.071},{"lat":59.337445,"lon":18.073533,"spd":49.3,"z":0.117,"x":0.178,"y":0.071},{"lat":59.337488,"lon":18.073714,"spd":50.2,"z":0.115,"x":0.191,"y":0.075},{"lat":59.33755,"lon":18.07394,"spd":50.1,"z":0.175,"x":0.197,"y":0.072},{"lat":59.337618,"lon":18.074083,"spd":49.1,"z":0.125,"x":0.169,"y":0.071},{"lat":59.337705,"lon":18.074232,"spd":50.4,"z":0.173,"x":0.178,"y":0.069},{"lat":59.337784,"lon":18.074485,"spd":48.9,"z":0.119,"x":0.209,"y":0.057},{"lat":59.337862,"lon":18.074654,"spd":48.6,"z":0.151,"x":0.184,"y":0.072},{"lat":59.337917,"lon":18.074817,"spd":49.8,"z":0.138,"x":0.157,"y":0.069},{"lat":59.338028,"lon":18.075056,"spd":47.8,"z":0.154,"x":0.183,"y":0.064},{"lat":59.338092,"lon":18.075276,"spd":43.5,"z":0.126,"x":0.268,"y":0.064},{"lat":59.338173,"lon":18.075337,"spd":34.2,"z":0.084,"x":0.259,"y":0.062},{"lat":59.338195,"lon":18.075444,"spd":25.2,"z":0.085,"x":0.261,"y":0.049},{"lat":59.338191,"lon":18.075476,"spd":15.2,"z":0.045,"x":0.227,"y":0.047},{"lat":59.338195,"lon":18.07556,"spd":7.3,"z":0.032,"x":0.166,"y":0.047},{"lat":59.338223,"lon":18.075533,"spd":0.4,"z":0.019,"x":0.111,"y":0.046},{"lat":59.338203,"lon":18.07548,"spd":0.0,"z":0.025,"x":0.146,"y":0.042},{"lat":59.338226,"lon":18.075531,"spd":0.0,"z":0.019,"x":0.137,"y":0.043},{"lat":59.338208,"lon":18.075524,"spd":0.0,"z":0.02,"x":0.124,"y":0.045},{"lat":59.338251,"lon":18.075487,"spd":0.0,"z":0.02,"x":0.128,"y":0.043},{"lat":59.338236,"lon":18.075559,"spd":0.6,"z":0.021,"x":0.134,"y":0.044},{"lat":59.338246,"lon":18.075451,"spd":0.8,"z":0.021,"x":0.127,"y":0.047},{"lat":59.33822,"lon":18.075523,"spd":1.1,"z":0.018,"x":0.124,"y":0.047},{"lat":59.338229,"lon":18.07549,"spd":0.0,"z":0.019,"x":0.131,"y":0.044},{"lat":59.338245,"lon":18.075439,"spd":0.8,"z":0.018,"x":0.123,"y":0.044},{"lat":59.338234,"lon":18.075516,"spd":0.0,"z":0.021,"x":0.124,"y":0.044},{"lat":59.338241,"lon":18.075493,"spd":1.8,"z":0.02,"x":0.2,"y":0.045},{"lat":59.338212,"lon":18.07549,"spd":1.1,"z":0.019,"x":0.289,"y":0.047},{"lat":59.338256,"lon":18.07549,"spd":7.1,"z":0.043,"x":0.36,"y":0.047},{"lat":59.338241,"lon":18.075667,"spd":14.0,"z":0.046,"x":0.364,"y":0.047},{"lat":59.338332,"lon":18.075542,"spd":19.5,"z":0.065,"x":0.379,"y":0.055},{"lat":59.338332,"lon":18.075654,"spd":28.3,"z":0.104,"x":0.382,"y":0.066},{"lat":59.338407,"lon":18.0759,"spd":33.6,"z":0.158,"x":0.344,"y":0.067},{"lat":59.338436,"lon":18.076046,"spd":41.0,"z":0.12,"x":0.324,"y":0.067},{"lat":59.33851,"lon":18.076125,"spd":42.9,"z":0.133,"x":0.223,"y":0.069},{"lat":59.338581,"lon":18.076328,"spd":45.5,"z":0.129,"x":0.167,"y":0.071},{"lat":59.33862,"lon":18.076552,"spd":45.8,"z":0.147,"x":0.184,"y":0.081},{"lat":59.338673,"lon":18.076682,"spd":45.1,"z":0.173,"x":0.159,"y":0.064},{"lat":59.338797,"lon":18.076897,"spd":43.3,"z":0.115,"x":0.221,"y":0.076},{"lat":59.338834,"lon":18.07703,"spd":44.1,"z":0.133,"x":0.197,"y":0.064},{"lat":59.338955,"lon":18.077178,"spd":46.2,"z":0.101,"x":0.169,"y":0.072},{"lat":59.339018,"lon":18.077308,"spd":45.8,"z":0.526,"x":0.216,"y":0.066},{"lat":59.339031,"lon":18.077538,"spd":46.0,"z":0.132,"x":0.164,"y":0.075},{"lat":59.339155,"lon":18.077683,"spd":45.0,"z":0.167,"x":0.214,"y":0.071},{"lat":59.339239,"lon":18.077925,"spd":45.0,"z":0.164,"x":0.19,"y":0.078},{"lat":59.339343,"lon":18.078091,"spd":44.5,"z":0.164,"x":0.221,"y":0.077},{"lat":59.339373,"lon":18.078206,"spd":43.2,"z":0.112,"x":0.172,"y":0.074},{"lat":59.339418,"lon":18.078383,"spd":44.4,"z":0.155,"x":0.189,"y":0.084},{"lat":59.339487,"lon":18.078536,"spd":44.3,"z":0.126,"x":0.181,"y":0.073},{"lat":59.339588,"lon":18.078698,"spd":45.1,"z":0.166,"x":0.204,"y":0.068},{"lat":59.33965,"lon":18.078844,"spd":45.0,"z":0.134,"x":0.187,"y":0.067},{"lat":59.33974,"lon":18.079063,"spd":46.4,"z":0.127,"x":0.181,"y":0.063},{"lat":59.33982,"lon":18.079215,"spd":44.4,"z":0.133,"x":0.166,"y":0.069},{"lat":59.339901,"lon":18.079463,"spd":46.0,"z":0.12,"x":0.165,"y":0.075},{"lat":59.339973,"lon":18.079548,"spd":44.7,"z":0.145,"x":0.221,"y":0.069},{"lat":59.340019,"lon":18.079839,"spd":45.2,"z":0.131,"x":0.168,"y":0.071},{"lat":59.340119,"lon":18.079982,"spd":45.8,"z":0.156,"x":0.168,"y":0.068},{"lat":59.340143,"lon":18.08004,"spd":44.9,"z":0.161,"x":0.234,"y":0.068}];
+
+// MAPLIBRE GL MAP
+// ══════════════════════════════════════════════════════════════
 let map;
 
 function initMap() {
     map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-        center: [18.072, 59.336],
-        zoom: 14,
+        center: [18.062, 59.340],
+        zoom: 13.2,
     });
+    map.on('load', () => renderMapOverlays());
 }
 
-function loadData() {
-    Papa.parse('dataset_single_vehicle_trace2.csv', {
-        download: true,
-        header: true,
-        dynamicTyping: true,
-        complete: function(results) {
-            const data = results.data.filter(r => r.timestamp_s !== null && r.accel_z_g !== null);
-            renderAll(data);
-        }
+function renderMapOverlays() {
+    // Remove old layers/sources
+    roads.forEach((_, i) => {
+        if (map.getLayer('road-'+i)) map.removeLayer('road-'+i);
+        if (map.getSource('road-'+i)) map.removeSource('road-'+i);
     });
-}
+    if (map.getLayer('markers')) map.removeLayer('markers');
+    if (map.getSource('markers')) map.removeSource('markers');
 
-function renderAll(data) {
-    const ts = data.map(r => r.timestamp_s);
-    const ax = data.map(r => r.accel_x_g);
-    const ay = data.map(r => r.accel_y_g);
-    const az = data.map(r => r.accel_z_g);
-    const speed = data.map(r => r.speed_kmh);
-    const gpsPoints = data.filter(r => r.gps_lat && r.gps_lon);
+    // Add road lines
+    roads.forEach((road, ri) => {
+        const hasIssue = road.anomalies.some(a => a.sev > 0.05);
+        const hasLateral = road.anomalies.some(a => a.det === 'lateral' && a.sev > 0.05);
+        const hasBraking = road.anomalies.some(a => a.det === 'braking' && a.sev > 0.05);
+        const color = hasIssue ? (hasLateral ? '#f59e0b' : hasBraking ? '#8b5cf6' : '#dc2626') : '#16a34a';
 
-    // Info bar
-    document.getElementById('i-samples').textContent = data.length.toLocaleString();
-    document.getElementById('i-duration').textContent = ts[ts.length-1].toFixed(1);
-    const movingSpeed = speed.filter(s => s > 1);
-    const avgSpeed = movingSpeed.length ? movingSpeed.reduce((a,b) => a+b, 0) / movingSpeed.length : 0;
-    document.getElementById('i-avgspeed').textContent = avgSpeed.toFixed(1);
-
-    const vSpikes = az.filter(v => Math.abs(v) > 0.3).length;
-    const brakingEvents = ax.filter(v => v < -0.2).length;
-    const normalPct = ((data.length - vSpikes - brakingEvents) / data.length * 100).toFixed(0);
-    document.getElementById('i-vspikes').textContent = vSpikes;
-    document.getElementById('i-braking').textContent = brakingEvents;
-    document.getElementById('i-normal').textContent = normalPct + '%';
-
-    // MAP: GPS trace colored by vertical acceleration
-    if (gpsPoints.length > 1) {
-        map.on('load', () => {
-            // Build colored line segments
-            const features = [];
-            for (let i = 0; i < gpsPoints.length - 1; i++) {
-                const p1 = gpsPoints[i];
-                const p2 = gpsPoints[i+1];
-                const t1 = p1.timestamp_s;
-                const t2 = p2.timestamp_s;
-                const window = data.filter(r => r.timestamp_s >= t1 && r.timestamp_s < t2);
-                const maxZ = Math.max(...window.map(r => Math.abs(r.accel_z_g)));
-
-                let color = '#16a34a';
-                if (maxZ > 0.3) color = '#dc2626';
-                else if (maxZ > 0.1) color = '#f59e0b';
-
-                features.push({
-                    type: 'Feature',
-                    geometry: {
-                        type: 'LineString',
-                        coordinates: [[p1.gps_lon, p1.gps_lat], [p2.gps_lon, p2.gps_lat]]
-                    },
-                    properties: { color, maxZ }
-                });
-            }
-
-            // Add each color as separate layer for proper rendering
-            const colors = ['#16a34a', '#f59e0b', '#dc2626'];
-            const names = ['normal', 'moderate', 'severe'];
-            const widths = [3, 4, 5];
-
-            colors.forEach((c, ci) => {
-                const filtered = features.filter(f => f.properties.color === c);
-                if (!filtered.length) return;
-                map.addSource('trace-' + names[ci], {
-                    type: 'geojson',
-                    data: { type: 'FeatureCollection', features: filtered }
-                });
-                map.addLayer({
-                    id: 'trace-' + names[ci],
-                    type: 'line',
-                    source: 'trace-' + names[ci],
-                    paint: { 'line-color': c, 'line-width': widths[ci], 'line-opacity': 0.85 }
-                });
-            });
-
-            // Add markers for severe spikes
-            const severeMarkers = [];
-            for (let i = 0; i < gpsPoints.length - 1; i++) {
-                const p1 = gpsPoints[i];
-                const p2 = gpsPoints[i+1];
-                const t1 = p1.timestamp_s;
-                const t2 = p2.timestamp_s;
-                const window = data.filter(r => r.timestamp_s >= t1 && r.timestamp_s < t2);
-                const maxZ = Math.max(...window.map(r => Math.abs(r.accel_z_g)));
-                if (maxZ > 0.4) {
-                    severeMarkers.push({
-                        type: 'Feature',
-                        geometry: { type: 'Point', coordinates: [(p1.gps_lon+p2.gps_lon)/2, (p1.gps_lat+p2.gps_lat)/2] },
-                        properties: { label: maxZ.toFixed(2) + 'g' }
-                    });
+        map.addSource('road-'+ri, {
+            type: 'geojson',
+            data: {
+                type: 'Feature',
+                geometry: {
+                    type: 'LineString',
+                    coordinates: road.coords.map(c => [c[1], c[0]])
                 }
             }
-
-            if (severeMarkers.length) {
-                map.addSource('spikes', {
-                    type: 'geojson',
-                    data: { type: 'FeatureCollection', features: severeMarkers }
-                });
-                map.addLayer({
-                    id: 'spikes',
-                    type: 'circle',
-                    source: 'spikes',
-                    paint: { 'circle-color': '#dc2626', 'circle-radius': 7, 'circle-opacity': 0.8, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
-                });
-            }
-
-            // Fit map to trace
-            const lats = gpsPoints.map(p => p.gps_lat);
-            const lons = gpsPoints.map(p => p.gps_lon);
-            map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 40 });
         });
+        map.addLayer({
+            id: 'road-'+ri,
+            type: 'line',
+            source: 'road-'+ri,
+            paint: {
+                'line-color': color,
+                'line-width': hasIssue ? 5 : 3,
+                'line-opacity': hasIssue ? 0.85 : 0.45,
+            }
+        });
+
+        // Click handler
+        map.on('click', 'road-'+ri, () => selectRoad(ri));
+        map.on('mouseenter', 'road-'+ri, () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', 'road-'+ri, () => { map.getCanvas().style.cursor = ''; });
+    });
+
+    // Add anomaly markers as circle layer
+    const markerFeatures = [];
+    roads.forEach((road, ri) => {
+        for (const a of road.anomalies) {
+            if (a.sev < 0.05) continue;
+            const t = a.pos / road.len;
+            const idx = t * (road.coords.length - 1);
+            const lo = Math.floor(idx), hi = Math.min(lo + 1, road.coords.length - 1);
+            const f = idx - lo;
+            const lat = road.coords[lo][0] * (1-f) + road.coords[hi][0] * f;
+            const lon = road.coords[lo][1] * (1-f) + road.coords[hi][1] * f;
+            const mColor = a.det === 'vertical' ? '#dc2626' : a.det === 'lateral' ? '#f59e0b' : '#8b5cf6';
+            markerFeatures.push({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [lon, lat] },
+                properties: { color: mColor, radius: 6 + a.sev * 6, name: road.name, type: a.type, sev: (a.sev*100).toFixed(0), ri }
+            });
+        }
+    });
+
+    map.addSource('markers', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: markerFeatures }
+    });
+    map.addLayer({
+        id: 'markers',
+        type: 'circle',
+        source: 'markers',
+        paint: {
+            'circle-color': ['get', 'color'],
+            'circle-radius': ['get', 'radius'],
+            'circle-opacity': 0.75,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': ['get', 'color'],
+        }
+    });
+
+    // Popup on marker click
+    map.on('click', 'markers', (e) => {
+        const p = e.features[0].properties;
+        new maplibregl.Popup({ offset: 10 })
+            .setLngLat(e.lngLat)
+            .setHTML(`<b>${p.name}</b><br>${p.type}: ${p.sev}%`)
+            .addTo(map);
+        selectRoad(p.ri);
+    });
+    map.on('mouseenter', 'markers', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'markers', () => { map.getCanvas().style.cursor = ''; });
+
+    // Real vehicle trace
+    if (map.getLayer('trace-normal')) map.removeLayer('trace-normal');
+    if (map.getLayer('trace-moderate')) map.removeLayer('trace-moderate');
+    if (map.getLayer('trace-severe')) map.removeLayer('trace-severe');
+    if (map.getSource('trace-normal')) map.removeSource('trace-normal');
+    if (map.getSource('trace-moderate')) map.removeSource('trace-moderate');
+    if (map.getSource('trace-severe')) map.removeSource('trace-severe');
+    if (map.getLayer('trace-spikes')) map.removeLayer('trace-spikes');
+    if (map.getSource('trace-spikes')) map.removeSource('trace-spikes');
+
+    const traceFeatures = {normal:[], moderate:[], severe:[]};
+    const spikeFeatures = [];
+    for (let i = 0; i < traceData.length - 1; i++) {
+        const p1 = traceData[i], p2 = traceData[i+1];
+        const maxZ = Math.max(p1.z, p2.z);
+        const cat = maxZ > 0.3 ? 'severe' : maxZ > 0.1 ? 'moderate' : 'normal';
+        traceFeatures[cat].push({
+            type:'Feature',
+            geometry:{type:'LineString', coordinates:[[p1.lon,p1.lat],[p2.lon,p2.lat]]}
+        });
+        if (maxZ > 0.4) {
+            spikeFeatures.push({
+                type:'Feature',
+                geometry:{type:'Point', coordinates:[(p1.lon+p2.lon)/2,(p1.lat+p2.lat)/2]},
+                properties:{label: maxZ.toFixed(2)+'g'}
+            });
+        }
     }
 
-    // CHARTS
+    const traceColors = {normal:'#16a34a', moderate:'#f59e0b', severe:'#dc2626'};
+    const traceWidths = {normal:3, moderate:4, severe:5};
+    for (const cat of ['normal','moderate','severe']) {
+        if (!traceFeatures[cat].length) continue;
+        map.addSource('trace-'+cat, {type:'geojson', data:{type:'FeatureCollection', features:traceFeatures[cat]}});
+        map.addLayer({id:'trace-'+cat, type:'line', source:'trace-'+cat,
+            paint:{'line-color':traceColors[cat], 'line-width':traceWidths[cat], 'line-opacity':0.8}
+        });
+    }
+    if (spikeFeatures.length) {
+        map.addSource('trace-spikes', {type:'geojson', data:{type:'FeatureCollection', features:spikeFeatures}});
+        map.addLayer({id:'trace-spikes', type:'circle', source:'trace-spikes',
+            paint:{'circle-color':'#dc2626','circle-radius':7,'circle-opacity':0.85,'circle-stroke-width':2,'circle-stroke-color':'#fff'}
+        });
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ROAD LIST
+// ══════════════════════════════════════════════════════════════
+function renderList() {
+    const el = document.getElementById('road-list');
+    let html = '';
+    roads.forEach((r, i) => {
+        const active = r.anomalies.filter(a => a.sev > 0.05);
+        const worst = active.length ? Math.max(...active.map(a => a.sev)) : 0;
+        const dotClass = active.length ? (active.some(a=>a.det==='vertical') ? 'red' : active.some(a=>a.det==='lateral') ? 'orange' : 'purple') : 'green';
+        const pctClass = worst > 0.7 ? 'high' : worst > 0.3 ? 'med' : 'ok';
+        const label = active.length ? active.map(a => a.type).join(', ') : 'No issues';
+        html += `<div class="road-item${i===selected?' active':''}" onclick="selectRoad(${i})">
+            <div class="dot ${dotClass}"></div>
+            <div style="flex:1"><div class="r-name">${r.name}</div><div class="r-sub">${label}</div></div>
+            <span class="r-pct ${pctClass}">${active.length ? (worst*100).toFixed(0)+'%' : 'OK'}</span>
+        </div>`;
+    });
+    el.innerHTML = html;
+    document.getElementById('road-count').textContent = roads.length + ' roads monitored';
+}
+
+// ══════════════════════════════════════════════════════════════
+// DETAIL CHARTS
+// ══════════════════════════════════════════════════════════════
+function segData(road) {
+    const n = Math.floor(road.len / SEG);
+    const pos = Array.from({length:n}, (_, i) => i * SEG);
+    const bv = pos.map((_, i) => 0.01 + ((i * road.name.length * 7) % 100) / 5000);
+    const cv = [...bv];
+    const bl = pos.map((_, i) => 6 + ((i * road.name.length * 3) % 100) / 12);
+    const cl = [...bl];
+    const bb = pos.map((_, i) => 0.02 + ((i * road.name.length * 5) % 100) / 4000);
+    const cbr = [...bb];
+    for (const a of road.anomalies) {
+        const s = Math.min(Math.floor(a.pos / SEG), n - 1);
+        if (a.det === "vertical") {
+            cv[s] = a.sev;
+            if (s > 0) cv[s-1] = Math.max(cv[s-1], 0.18);
+            if (s < n-1) cv[s+1] = Math.max(cv[s+1], 0.18);
+        } else if (a.det === "lateral") {
+            cl[s] = 80 + a.sev * 70;
+            if (s > 1) { cl[s-1] = 45; cl[s-2] = 25; }
+            if (s < n-2) { cl[s+1] = 45; cl[s+2] = 25; }
+        } else if (a.det === "braking") {
+            cbr[s] = a.sev;
+            if (s > 1) { cbr[s-1] = Math.max(cbr[s-1], 0.30); cbr[s-2] = Math.max(cbr[s-2], 0.12); }
+            if (s < n-2) { cbr[s+1] = Math.max(cbr[s+1], 0.30); cbr[s+2] = Math.max(cbr[s+2], 0.12); }
+        }
+    }
+    return { pos, bv, cv, bl, cl, bb, cbr };
+}
+
+function renderDetail() {
+    const road = roads[selected];
+    document.getElementById('detail-title').textContent = road.name + ' — Detailed Analysis';
+    const d = segData(road);
     const cfg = { responsive: true, displayModeBar: false };
     const font = { family: 'Inter', size: 10, color: '#64748b' };
-    const layoutBase = {
-        margin: {t:6, b:34, l:44, r:12}, font,
-        plot_bgcolor: 'white', paper_bgcolor: 'white',
-        xaxis: {title: 'Time (s)', gridcolor: '#f1f5f9', zeroline: false},
-        legend: {orientation: 'h', y: 1.12, x: 0.5, xanchor: 'center', font: {size: 9}},
-    };
 
-    Plotly.newPlot('chart-speed', [{
-        x: ts, y: speed, mode: 'lines', name: 'Speed',
-        line: {color: '#3b82f6', width: 1.5}
-    }], {...layoutBase, yaxis: {title: 'km/h', gridcolor: '#f1f5f9', zeroline: false}}, cfg);
+    Plotly.newPlot('cv', [
+        { x:d.pos, y:d.bv.map(v=>v*100), mode:'lines', name:'Baseline (1 year)',
+          line:{color:'#93c5fd',width:1.5,dash:'dot'}, fill:'tozeroy', fillcolor:'rgba(147,197,253,0.06)' },
+        { x:d.pos, y:d.cv.map(v=>v*100), mode:'lines', name:'Current week',
+          line:{color:'#dc2626',width:2.5} },
+    ], {
+        margin:{t:6,b:34,l:40,r:12}, font,
+        xaxis:{title:'Position (m)',gridcolor:'#f1f5f9',zeroline:false},
+        yaxis:{title:'Spike rate (%)',gridcolor:'#f1f5f9',zeroline:false},
+        plot_bgcolor:'white', paper_bgcolor:'white',
+        legend:{orientation:'h',y:1.15,x:0.5,xanchor:'center',font:{size:9}},
+    }, cfg);
 
-    Plotly.newPlot('chart-z', [{
-        x: ts, y: az, mode: 'lines', name: 'accel_z',
-        line: {color: '#dc2626', width: 1}
-    },{
-        x: [ts[0], ts[ts.length-1]], y: [0.3, 0.3], mode: 'lines', name: 'Threshold',
-        line: {color: '#f59e0b', width: 1, dash: 'dash'}
-    },{
-        x: [ts[0], ts[ts.length-1]], y: [-0.3, -0.3], mode: 'lines',
-        line: {color: '#f59e0b', width: 1, dash: 'dash'}, showlegend: false
-    }], {...layoutBase, yaxis: {title: 'g-force', gridcolor: '#f1f5f9', zeroline: true, zerolinecolor: '#e2e8f0'}}, cfg);
+    Plotly.newPlot('cl', [
+        { x:d.pos, y:d.bl, mode:'lines', name:'Baseline (1 year)',
+          line:{color:'#a5f3fc',width:1.5,dash:'dot'}, fill:'tozeroy', fillcolor:'rgba(165,243,252,0.06)' },
+        { x:d.pos, y:d.cl, mode:'lines', name:'Current week',
+          line:{color:'#f59e0b',width:2.5} },
+    ], {
+        margin:{t:6,b:34,l:40,r:12}, font,
+        xaxis:{title:'Position (m)',gridcolor:'#f1f5f9',zeroline:false},
+        yaxis:{title:'Deviation (cm)',gridcolor:'#f1f5f9',zeroline:false},
+        plot_bgcolor:'white', paper_bgcolor:'white',
+        legend:{orientation:'h',y:1.15,x:0.5,xanchor:'center',font:{size:9}},
+    }, cfg);
 
-    Plotly.newPlot('chart-y', [{
-        x: ts, y: ay, mode: 'lines', name: 'accel_y',
-        line: {color: '#f59e0b', width: 1}
-    }], {...layoutBase, yaxis: {title: 'g-force', gridcolor: '#f1f5f9', zeroline: true, zerolinecolor: '#e2e8f0'}}, cfg);
+    Plotly.newPlot('cb', [
+        { x:d.pos, y:d.bb.map(v=>v*100), mode:'lines', name:'Baseline (1 year)',
+          line:{color:'#c4b5fd',width:1.5,dash:'dot'}, fill:'tozeroy', fillcolor:'rgba(196,181,253,0.06)' },
+        { x:d.pos, y:d.cbr.map(v=>v*100), mode:'lines', name:'Current week',
+          line:{color:'#8b5cf6',width:2.5} },
+    ], {
+        margin:{t:6,b:34,l:40,r:12}, font,
+        xaxis:{title:'Position (m)',gridcolor:'#f1f5f9',zeroline:false},
+        yaxis:{title:'Hard braking (%)',gridcolor:'#f1f5f9',zeroline:false},
+        plot_bgcolor:'white', paper_bgcolor:'white',
+        legend:{orientation:'h',y:1.15,x:0.5,xanchor:'center',font:{size:9}},
+    }, cfg);
+}
 
-    Plotly.newPlot('chart-x', [{
-        x: ts, y: ax, mode: 'lines', name: 'accel_x',
-        line: {color: '#8b5cf6', width: 1}
-    },{
-        x: [ts[0], ts[ts.length-1]], y: [-0.2, -0.2], mode: 'lines', name: 'Braking threshold',
-        line: {color: '#dc2626', width: 1, dash: 'dash'}
-    }], {...layoutBase, yaxis: {title: 'g-force', gridcolor: '#f1f5f9', zeroline: true, zerolinecolor: '#e2e8f0'}}, cfg);
+// ══════════════════════════════════════════════════════════════
+// SELECT + SLIDERS + INIT
+// ══════════════════════════════════════════════════════════════
+function selectRoad(idx) {
+    selected = idx;
+    renderList();
+    renderDetail();
+}
+
+function setupSliders() {
+    [{s:'s1',v:'v1',ri:1,ai:0},{s:'s2',v:'v2',ri:1,ai:1},{s:'s3',v:'v3',ri:0,ai:0}].forEach(c => {
+        document.getElementById(c.s).addEventListener('input', function() {
+            document.getElementById(c.v).textContent = this.value + '%';
+            roads[c.ri].anomalies[c.ai].sev = this.value / 100;
+            if (map && map.isStyleLoaded()) renderMapOverlays();
+            renderList();
+            renderDetail();
+        });
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     initMap();
-    loadData();
+    renderList();
+    renderDetail();
+    setupSliders();
 });
 </script>
 </body>
