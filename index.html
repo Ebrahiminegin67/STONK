@@ -51,14 +51,7 @@
         .r-pct.med { background:#fffbeb;color:#d97706; }
         .r-pct.ok { background:#f0fdf4;color:#16a34a; }
 
-        .controls { padding:12px 16px;background:#f8fafc;border-top:1px solid #e0e5ec; }
-        .controls h4 { font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px; }
-        .sl-row { margin-bottom:8px; }
-        .sl-lbl { display:flex;justify-content:space-between;margin-bottom:3px; }
-        .sl-lbl span { font-size:10px;color:#475569; }
-        .sl-val { font-weight:700;color:#1d4ed8; }
-        input[type="range"] { width:100%;height:3px;-webkit-appearance:none;appearance:none;background:#e2e8f0;border-radius:2px;outline:none; }
-        input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#3b82f6;cursor:pointer; }
+
 
         .bottom { grid-column:1/-1; }
         .detail-title { font-size:13px;font-weight:600;margin-bottom:10px; }
@@ -89,21 +82,6 @@
     <div class="card sidebar">
         <div class="card-h"><h3>Road Status</h3><small id="road-count"></small></div>
         <div class="road-list" id="road-list"></div>
-        <div class="controls">
-            <h4>Adjust Severity</h4>
-            <div class="sl-row">
-                <div class="sl-lbl"><span>Sveavägen — Pothole</span><span class="sl-val" id="v1">92%</span></div>
-                <input type="range" id="s1" min="0" max="100" value="92">
-            </div>
-            <div class="sl-row">
-                <div class="sl-lbl"><span>Sveavägen — Fallen tree</span><span class="sl-val" id="v2">78%</span></div>
-                <input type="range" id="s2" min="0" max="100" value="78">
-            </div>
-            <div class="sl-row">
-                <div class="sl-lbl"><span>Kungsgatan — Pothole</span><span class="sl-val" id="v3">85%</span></div>
-                <input type="range" id="s3" min="0" max="100" value="85">
-            </div>
-        </div>
     </div>
 
     <!-- DETAIL CHARTS -->
@@ -124,39 +102,43 @@
             </div>
         </div>
     </div>
+
+    <!-- DETECTED ANOMALIES -->
+    <div class="bottom">
+        <div class="card">
+            <div class="card-h"><h3>Detected Anomalies</h3><small id="anomaly-count"></small></div>
+            <div id="anomaly-list" style="display:grid; grid-template-columns:1fr 1fr; gap:0;"></div>
+        </div>
+    </div>
 </div>
 
-<script>
-// ══════════════════════════════════════════════════════════════
+<script>// ══════════════════════════════════════════════════════════════
 // DATA
 // ══════════════════════════════════════════════════════════════
 const SEG = 5;
 let selected = 1;
 
 const roads = [
-    { name:"Kungsgatan", len:500,
-      coords:[[59.335571,18.063669],[59.335656,18.064047],[59.335752,18.064468],[59.335836,18.065054],[59.335882,18.065737],[59.335925,18.066665],[59.335993,18.068122],[59.336012,18.068533],[59.33611,18.070658],[59.336128,18.07098]],
-      anomalies:[{pos:200,type:"Pothole",det:"vertical",sev:0.85}] },
-    { name:"Sveavägen", len:700,
-      coords:[[59.337895,18.061206],[59.340436,18.058829],[59.343881,18.055599],[59.344686,18.054731],[59.345458,18.054075],[59.346362,18.053201],[59.346826,18.052381],[59.347567,18.051959],[59.348158,18.051408],[59.34968,18.050417]],
-      anomalies:[{pos:350,type:"Large pothole",det:"vertical",sev:0.92},{pos:550,type:"Fallen tree",det:"lateral",sev:0.78}] },
-    { name:"Birger Jarlsgatan", len:550,
-      coords:[[59.333742,18.075049],[59.341307,18.065251],[59.342818,18.063657],[59.343939,18.062845],[59.345523,18.062563],[59.346335,18.061799],[59.348051,18.060471],[59.349506,18.058982]],
-      anomalies:[{pos:120,type:"Sunken manhole",det:"vertical",sev:0.70},{pos:400,type:"Construction debris",det:"lateral",sev:0.62}] },
-    { name:"Vasagatan", len:400,
-      coords:[[59.328719,18.061289],[59.329858,18.060253],[59.331309,18.058376],[59.332137,18.05625],[59.332982,18.056882],[59.334902,18.055414],[59.33541,18.055033]],
-      anomalies:[{pos:250,type:"Sudden braking zone",det:"braking",sev:0.72}] },
-    { name:"Drottninggatan", len:600,
-      coords:[[59.328456,18.066819],[59.329524,18.065754],[59.330703,18.06458],[59.331866,18.063413],[59.33981,18.055533],[59.34047,18.054881],[59.340944,18.053474],[59.341062,18.052937]],
+    { name:"Kungsgatan", len:800,
+      coords:[[59.334683,18.060109],[59.334786,18.060514],[59.335138,18.061864],[59.335165,18.061969],[59.335345,18.062662],[59.335426,18.063007],[59.335457,18.063136],[59.335487,18.063266],[59.335528,18.063466],[59.335571,18.063669],[59.335629,18.063927],[59.335656,18.064047],[59.335672,18.064112],[59.335752,18.064468],[59.335809,18.06483],[59.335836,18.065054],[59.335856,18.065288],[59.335882,18.065737],[59.335925,18.066665],[59.335993,18.068122],[59.336012,18.068533],[59.33611,18.070658],[59.336117,18.070789],[59.336128,18.07098],[59.336136,18.071124],[59.336142,18.071234],[59.336163,18.07168],[59.336155,18.071904],[59.336155,18.072004],[59.336161,18.07224]],
+      anomalies:[{pos:400,type:"Pothole",det:"vertical",sev:0.85}] },
+    { name:"Sveavägen", len:1800,
+      coords:[[59.332662,18.065951],[59.332687,18.065906],[59.332906,18.065761],[59.334482,18.064812],[59.335027,18.064452],[59.335127,18.064339],[59.33596,18.06302],[59.336081,18.062905],[59.336508,18.062504],[59.337528,18.061553],[59.337895,18.061206],[59.338685,18.060452],[59.339383,18.05982],[59.340336,18.058915],[59.34052,18.058756],[59.342248,18.05712],[59.34311,18.056314],[59.343949,18.055527],[59.344153,18.055253],[59.344758,18.054664],[59.345577,18.053885],[59.346881,18.052606],[59.347567,18.051959],[59.348158,18.051408],[59.349486,18.050225],[59.349662,18.050017]],
+      anomalies:[{pos:900,type:"Large pothole",det:"vertical",sev:0.92}] },
+    { name:"Odengatan", len:1400,
+      coords:[[59.339962,18.039018],[59.339841,18.039266],[59.340041,18.039646],[59.340346,18.040608],[59.340776,18.042312],[59.34107,18.043546],[59.341191,18.044022],[59.34126,18.044876],[59.341465,18.045406],[59.341624,18.045685],[59.343147,18.052275],[59.34345,18.053487],[59.343589,18.054028],[59.34387,18.055211],[59.343949,18.055527],[59.344136,18.055777],[59.344296,18.056886],[59.344485,18.057436],[59.344654,18.058126],[59.34494,18.059284],[59.345345,18.060929],[59.345408,18.061195],[59.345666,18.062224],[59.345762,18.06261],[59.345937,18.063305]],
+      anomalies:[{pos:700,type:"Fallen tree",det:"lateral",sev:0.78}] },
+    { name:"Fleminggatan", len:1000,
+      coords:[[59.33425,18.033999],[59.334196,18.034426],[59.33407,18.035394],[59.333618,18.038305],[59.333557,18.038874],[59.333488,18.039386],[59.333305,18.040821],[59.333279,18.042416],[59.333167,18.043291],[59.332954,18.04353],[59.333018,18.04442],[59.332963,18.044846],[59.332745,18.045104],[59.332702,18.045437],[59.332595,18.046247],[59.332618,18.046542],[59.332558,18.046985],[59.332353,18.048558]],
+      anomalies:[{pos:500,type:"Emergency braking zone",det:"braking",sev:0.72}] },
+    { name:"Dalagatan", len:1200,
+      coords:[[59.338018,18.049097],[59.338622,18.048514],[59.338881,18.048257],[59.339069,18.048072],[59.339228,18.047857],[59.339607,18.047688],[59.340184,18.047113],[59.340282,18.046875],[59.340574,18.046596],[59.340917,18.046243],[59.341154,18.046017],[59.341425,18.045884],[59.34283,18.044494],[59.343005,18.044312],[59.343338,18.043992],[59.343788,18.043541],[59.344363,18.042968],[59.344883,18.042455],[59.345381,18.041967],[59.347407,18.040374],[59.347437,18.040143],[59.347514,18.039877],[59.34809,18.039293]],
       anomalies:[] },
 ];
 
 // ══════════════════════════════════════════════════════════════
 // MAPLIBRE GL MAP
 // ══════════════════════════════════════════════════════════════
-// Real vehicle trace data (from dataset_single_vehicle_trace2.csv)
-const traceData = [{"lat":59.3327,"lon":18.064906,"spd":0.1,"z":0.022,"x":0.228,"y":0.044},{"lat":59.332685,"lon":18.064913,"spd":0.0,"z":0.026,"x":0.313,"y":0.044},{"lat":59.332719,"lon":18.064927,"spd":5.8,"z":0.038,"x":0.349,"y":0.048},{"lat":59.332745,"lon":18.064911,"spd":13.1,"z":0.057,"x":0.414,"y":0.054},{"lat":59.332813,"lon":18.064974,"spd":20.7,"z":0.069,"x":0.402,"y":0.056},{"lat":59.332868,"lon":18.065125,"spd":28.5,"z":0.09,"x":0.358,"y":0.061},{"lat":59.332922,"lon":18.06518,"spd":36.0,"z":0.106,"x":0.3,"y":0.072},{"lat":59.333037,"lon":18.065337,"spd":40.7,"z":0.16,"x":0.226,"y":0.061},{"lat":59.333114,"lon":18.065403,"spd":42.2,"z":0.11,"x":0.214,"y":0.078},{"lat":59.33318,"lon":18.065673,"spd":43.5,"z":0.154,"x":0.177,"y":0.063},{"lat":59.33324,"lon":18.065654,"spd":42.3,"z":0.123,"x":0.166,"y":0.072},{"lat":59.333385,"lon":18.065838,"spd":40.7,"z":0.118,"x":0.16,"y":0.067},{"lat":59.333459,"lon":18.066008,"spd":40.4,"z":0.118,"x":0.177,"y":0.069},{"lat":59.333489,"lon":18.06607,"spd":41.4,"z":0.115,"x":0.177,"y":0.068},{"lat":59.333588,"lon":18.066122,"spd":40.5,"z":0.113,"x":0.19,"y":0.069},{"lat":59.333658,"lon":18.066252,"spd":40.6,"z":0.095,"x":0.182,"y":0.064},{"lat":59.33375,"lon":18.066228,"spd":41.5,"z":0.144,"x":0.185,"y":0.071},{"lat":59.333888,"lon":18.066389,"spd":42.9,"z":0.125,"x":0.203,"y":0.065},{"lat":59.333949,"lon":18.066611,"spd":42.1,"z":0.309,"x":0.185,"y":0.071},{"lat":59.334018,"lon":18.066704,"spd":42.5,"z":0.102,"x":0.204,"y":0.073},{"lat":59.334135,"lon":18.066798,"spd":43.2,"z":0.145,"x":0.161,"y":0.069},{"lat":59.334223,"lon":18.066967,"spd":42.5,"z":0.159,"x":0.201,"y":0.081},{"lat":59.334322,"lon":18.067059,"spd":41.6,"z":0.105,"x":0.179,"y":0.067},{"lat":59.334392,"lon":18.067161,"spd":42.3,"z":0.168,"x":0.163,"y":0.074},{"lat":59.334478,"lon":18.067365,"spd":41.3,"z":0.125,"x":0.162,"y":0.073},{"lat":59.334531,"lon":18.067382,"spd":42.7,"z":0.136,"x":0.176,"y":0.074},{"lat":59.334636,"lon":18.067586,"spd":41.6,"z":0.104,"x":0.187,"y":0.064},{"lat":59.33472,"lon":18.067684,"spd":41.8,"z":0.124,"x":0.167,"y":0.073},{"lat":59.334754,"lon":18.067852,"spd":42.1,"z":0.109,"x":0.193,"y":0.066},{"lat":59.3349,"lon":18.067889,"spd":41.7,"z":0.142,"x":0.177,"y":0.068},{"lat":59.334936,"lon":18.067974,"spd":39.8,"z":0.124,"x":0.124,"y":0.127},{"lat":59.335067,"lon":18.068131,"spd":38.2,"z":0.107,"x":0.127,"y":0.195},{"lat":59.335109,"lon":18.068277,"spd":37.1,"z":0.117,"x":0.155,"y":0.209},{"lat":59.335164,"lon":18.068429,"spd":32.0,"z":0.087,"x":0.142,"y":0.203},{"lat":59.335206,"lon":18.068518,"spd":27.0,"z":0.068,"x":0.172,"y":0.177},{"lat":59.335244,"lon":18.068568,"spd":26.3,"z":0.091,"x":0.216,"y":0.123},{"lat":59.335294,"lon":18.068672,"spd":27.7,"z":0.093,"x":0.293,"y":0.061},{"lat":59.335369,"lon":18.068818,"spd":29.6,"z":0.083,"x":0.351,"y":0.061},{"lat":59.335378,"lon":18.068962,"spd":33.6,"z":0.088,"x":0.332,"y":0.069},{"lat":59.335467,"lon":18.069081,"spd":40.8,"z":0.135,"x":0.333,"y":0.062},{"lat":59.335587,"lon":18.069248,"spd":46.4,"z":0.152,"x":0.298,"y":0.066},{"lat":59.335602,"lon":18.069427,"spd":47.6,"z":0.138,"x":0.242,"y":0.066},{"lat":59.335697,"lon":18.069616,"spd":51.5,"z":0.11,"x":0.186,"y":0.074},{"lat":59.335796,"lon":18.069803,"spd":49.5,"z":0.114,"x":0.178,"y":0.074},{"lat":59.335907,"lon":18.069935,"spd":50.4,"z":0.121,"x":0.21,"y":0.078},{"lat":59.335972,"lon":18.070094,"spd":49.3,"z":0.785,"x":0.207,"y":0.126},{"lat":59.336014,"lon":18.070313,"spd":50.2,"z":0.116,"x":0.186,"y":0.065},{"lat":59.336106,"lon":18.070518,"spd":48.7,"z":0.126,"x":0.163,"y":0.075},{"lat":59.336173,"lon":18.070755,"spd":51.2,"z":0.128,"x":0.18,"y":0.061},{"lat":59.336282,"lon":18.070901,"spd":48.2,"z":0.122,"x":0.195,"y":0.064},{"lat":59.336335,"lon":18.071109,"spd":48.9,"z":0.13,"x":0.185,"y":0.077},{"lat":59.336457,"lon":18.071292,"spd":51.6,"z":0.112,"x":0.219,"y":0.068},{"lat":59.336455,"lon":18.071498,"spd":52.2,"z":0.118,"x":0.18,"y":0.07},{"lat":59.336592,"lon":18.071644,"spd":49.4,"z":0.097,"x":0.179,"y":0.074},{"lat":59.336675,"lon":18.071817,"spd":51.2,"z":0.124,"x":0.17,"y":0.066},{"lat":59.336754,"lon":18.071859,"spd":51.5,"z":0.157,"x":0.187,"y":0.08},{"lat":59.336782,"lon":18.072239,"spd":50.4,"z":0.178,"x":0.162,"y":0.068},{"lat":59.336928,"lon":18.07228,"spd":49.5,"z":0.132,"x":0.195,"y":0.067},{"lat":59.336991,"lon":18.072606,"spd":51.5,"z":0.174,"x":0.193,"y":0.066},{"lat":59.337077,"lon":18.072826,"spd":49.8,"z":0.165,"x":0.178,"y":0.07},{"lat":59.337177,"lon":18.072966,"spd":50.1,"z":0.12,"x":0.187,"y":0.067},{"lat":59.337211,"lon":18.073176,"spd":47.7,"z":0.202,"x":0.183,"y":0.07},{"lat":59.337336,"lon":18.073327,"spd":49.4,"z":0.328,"x":0.191,"y":0.071},{"lat":59.337445,"lon":18.073533,"spd":49.3,"z":0.117,"x":0.178,"y":0.071},{"lat":59.337488,"lon":18.073714,"spd":50.2,"z":0.115,"x":0.191,"y":0.075},{"lat":59.33755,"lon":18.07394,"spd":50.1,"z":0.175,"x":0.197,"y":0.072},{"lat":59.337618,"lon":18.074083,"spd":49.1,"z":0.125,"x":0.169,"y":0.071},{"lat":59.337705,"lon":18.074232,"spd":50.4,"z":0.173,"x":0.178,"y":0.069},{"lat":59.337784,"lon":18.074485,"spd":48.9,"z":0.119,"x":0.209,"y":0.057},{"lat":59.337862,"lon":18.074654,"spd":48.6,"z":0.151,"x":0.184,"y":0.072},{"lat":59.337917,"lon":18.074817,"spd":49.8,"z":0.138,"x":0.157,"y":0.069},{"lat":59.338028,"lon":18.075056,"spd":47.8,"z":0.154,"x":0.183,"y":0.064},{"lat":59.338092,"lon":18.075276,"spd":43.5,"z":0.126,"x":0.268,"y":0.064},{"lat":59.338173,"lon":18.075337,"spd":34.2,"z":0.084,"x":0.259,"y":0.062},{"lat":59.338195,"lon":18.075444,"spd":25.2,"z":0.085,"x":0.261,"y":0.049},{"lat":59.338191,"lon":18.075476,"spd":15.2,"z":0.045,"x":0.227,"y":0.047},{"lat":59.338195,"lon":18.07556,"spd":7.3,"z":0.032,"x":0.166,"y":0.047},{"lat":59.338223,"lon":18.075533,"spd":0.4,"z":0.019,"x":0.111,"y":0.046},{"lat":59.338203,"lon":18.07548,"spd":0.0,"z":0.025,"x":0.146,"y":0.042},{"lat":59.338226,"lon":18.075531,"spd":0.0,"z":0.019,"x":0.137,"y":0.043},{"lat":59.338208,"lon":18.075524,"spd":0.0,"z":0.02,"x":0.124,"y":0.045},{"lat":59.338251,"lon":18.075487,"spd":0.0,"z":0.02,"x":0.128,"y":0.043},{"lat":59.338236,"lon":18.075559,"spd":0.6,"z":0.021,"x":0.134,"y":0.044},{"lat":59.338246,"lon":18.075451,"spd":0.8,"z":0.021,"x":0.127,"y":0.047},{"lat":59.33822,"lon":18.075523,"spd":1.1,"z":0.018,"x":0.124,"y":0.047},{"lat":59.338229,"lon":18.07549,"spd":0.0,"z":0.019,"x":0.131,"y":0.044},{"lat":59.338245,"lon":18.075439,"spd":0.8,"z":0.018,"x":0.123,"y":0.044},{"lat":59.338234,"lon":18.075516,"spd":0.0,"z":0.021,"x":0.124,"y":0.044},{"lat":59.338241,"lon":18.075493,"spd":1.8,"z":0.02,"x":0.2,"y":0.045},{"lat":59.338212,"lon":18.07549,"spd":1.1,"z":0.019,"x":0.289,"y":0.047},{"lat":59.338256,"lon":18.07549,"spd":7.1,"z":0.043,"x":0.36,"y":0.047},{"lat":59.338241,"lon":18.075667,"spd":14.0,"z":0.046,"x":0.364,"y":0.047},{"lat":59.338332,"lon":18.075542,"spd":19.5,"z":0.065,"x":0.379,"y":0.055},{"lat":59.338332,"lon":18.075654,"spd":28.3,"z":0.104,"x":0.382,"y":0.066},{"lat":59.338407,"lon":18.0759,"spd":33.6,"z":0.158,"x":0.344,"y":0.067},{"lat":59.338436,"lon":18.076046,"spd":41.0,"z":0.12,"x":0.324,"y":0.067},{"lat":59.33851,"lon":18.076125,"spd":42.9,"z":0.133,"x":0.223,"y":0.069},{"lat":59.338581,"lon":18.076328,"spd":45.5,"z":0.129,"x":0.167,"y":0.071},{"lat":59.33862,"lon":18.076552,"spd":45.8,"z":0.147,"x":0.184,"y":0.081},{"lat":59.338673,"lon":18.076682,"spd":45.1,"z":0.173,"x":0.159,"y":0.064},{"lat":59.338797,"lon":18.076897,"spd":43.3,"z":0.115,"x":0.221,"y":0.076},{"lat":59.338834,"lon":18.07703,"spd":44.1,"z":0.133,"x":0.197,"y":0.064},{"lat":59.338955,"lon":18.077178,"spd":46.2,"z":0.101,"x":0.169,"y":0.072},{"lat":59.339018,"lon":18.077308,"spd":45.8,"z":0.526,"x":0.216,"y":0.066},{"lat":59.339031,"lon":18.077538,"spd":46.0,"z":0.132,"x":0.164,"y":0.075},{"lat":59.339155,"lon":18.077683,"spd":45.0,"z":0.167,"x":0.214,"y":0.071},{"lat":59.339239,"lon":18.077925,"spd":45.0,"z":0.164,"x":0.19,"y":0.078},{"lat":59.339343,"lon":18.078091,"spd":44.5,"z":0.164,"x":0.221,"y":0.077},{"lat":59.339373,"lon":18.078206,"spd":43.2,"z":0.112,"x":0.172,"y":0.074},{"lat":59.339418,"lon":18.078383,"spd":44.4,"z":0.155,"x":0.189,"y":0.084},{"lat":59.339487,"lon":18.078536,"spd":44.3,"z":0.126,"x":0.181,"y":0.073},{"lat":59.339588,"lon":18.078698,"spd":45.1,"z":0.166,"x":0.204,"y":0.068},{"lat":59.33965,"lon":18.078844,"spd":45.0,"z":0.134,"x":0.187,"y":0.067},{"lat":59.33974,"lon":18.079063,"spd":46.4,"z":0.127,"x":0.181,"y":0.063},{"lat":59.33982,"lon":18.079215,"spd":44.4,"z":0.133,"x":0.166,"y":0.069},{"lat":59.339901,"lon":18.079463,"spd":46.0,"z":0.12,"x":0.165,"y":0.075},{"lat":59.339973,"lon":18.079548,"spd":44.7,"z":0.145,"x":0.221,"y":0.069},{"lat":59.340019,"lon":18.079839,"spd":45.2,"z":0.131,"x":0.168,"y":0.071},{"lat":59.340119,"lon":18.079982,"spd":45.8,"z":0.156,"x":0.168,"y":0.068},{"lat":59.340143,"lon":18.08004,"spd":44.9,"z":0.161,"x":0.234,"y":0.068}];
-
 // MAPLIBRE GL MAP
 // ══════════════════════════════════════════════════════════════
 let map;
@@ -165,8 +147,8 @@ function initMap() {
     map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-        center: [18.062, 59.340],
-        zoom: 13.2,
+        center: [18.061, 59.340],
+        zoom: 13,
     });
     map.on('load', () => renderMapOverlays());
 }
@@ -263,50 +245,6 @@ function renderMapOverlays() {
     map.on('mouseenter', 'markers', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'markers', () => { map.getCanvas().style.cursor = ''; });
 
-    // Real vehicle trace
-    if (map.getLayer('trace-normal')) map.removeLayer('trace-normal');
-    if (map.getLayer('trace-moderate')) map.removeLayer('trace-moderate');
-    if (map.getLayer('trace-severe')) map.removeLayer('trace-severe');
-    if (map.getSource('trace-normal')) map.removeSource('trace-normal');
-    if (map.getSource('trace-moderate')) map.removeSource('trace-moderate');
-    if (map.getSource('trace-severe')) map.removeSource('trace-severe');
-    if (map.getLayer('trace-spikes')) map.removeLayer('trace-spikes');
-    if (map.getSource('trace-spikes')) map.removeSource('trace-spikes');
-
-    const traceFeatures = {normal:[], moderate:[], severe:[]};
-    const spikeFeatures = [];
-    for (let i = 0; i < traceData.length - 1; i++) {
-        const p1 = traceData[i], p2 = traceData[i+1];
-        const maxZ = Math.max(p1.z, p2.z);
-        const cat = maxZ > 0.3 ? 'severe' : maxZ > 0.1 ? 'moderate' : 'normal';
-        traceFeatures[cat].push({
-            type:'Feature',
-            geometry:{type:'LineString', coordinates:[[p1.lon,p1.lat],[p2.lon,p2.lat]]}
-        });
-        if (maxZ > 0.4) {
-            spikeFeatures.push({
-                type:'Feature',
-                geometry:{type:'Point', coordinates:[(p1.lon+p2.lon)/2,(p1.lat+p2.lat)/2]},
-                properties:{label: maxZ.toFixed(2)+'g'}
-            });
-        }
-    }
-
-    const traceColors = {normal:'#16a34a', moderate:'#f59e0b', severe:'#dc2626'};
-    const traceWidths = {normal:3, moderate:4, severe:5};
-    for (const cat of ['normal','moderate','severe']) {
-        if (!traceFeatures[cat].length) continue;
-        map.addSource('trace-'+cat, {type:'geojson', data:{type:'FeatureCollection', features:traceFeatures[cat]}});
-        map.addLayer({id:'trace-'+cat, type:'line', source:'trace-'+cat,
-            paint:{'line-color':traceColors[cat], 'line-width':traceWidths[cat], 'line-opacity':0.8}
-        });
-    }
-    if (spikeFeatures.length) {
-        map.addSource('trace-spikes', {type:'geojson', data:{type:'FeatureCollection', features:spikeFeatures}});
-        map.addLayer({id:'trace-spikes', type:'circle', source:'trace-spikes',
-            paint:{'circle-color':'#dc2626','circle-radius':7,'circle-opacity':0.85,'circle-stroke-width':2,'circle-stroke-color':'#fff'}
-        });
-    }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -329,6 +267,44 @@ function renderList() {
     });
     el.innerHTML = html;
     document.getElementById('road-count').textContent = roads.length + ' roads monitored';
+}
+
+function renderAnomalies() {
+    const el = document.getElementById('anomaly-list');
+    const anomalies = [];
+    roads.forEach((r, ri) => {
+        for (const a of r.anomalies) {
+            if (a.sev < 0.05) continue;
+            // Calculate GPS position
+            const t = a.pos / r.len;
+            const idx = t * (r.coords.length - 1);
+            const lo = Math.floor(idx), hi = Math.min(lo + 1, r.coords.length - 1);
+            const f = idx - lo;
+            const lat = r.coords[lo][0] * (1-f) + r.coords[hi][0] * f;
+            const lon = r.coords[lo][1] * (1-f) + r.coords[hi][1] * f;
+            anomalies.push({ road: r.name, ri, lat, lon, ...a });
+        }
+    });
+    anomalies.sort((a, b) => b.sev - a.sev);
+
+    let html = '';
+    anomalies.forEach(a => {
+        const dotClass = a.det === 'vertical' ? 'red' : a.det === 'lateral' ? 'orange' : 'purple';
+        const pctClass = a.sev > 0.7 ? 'high' : 'med';
+        const detLabel = a.det === 'vertical' ? 'Vertical' : a.det === 'lateral' ? 'Lateral' : 'Braking';
+        html += `<div class="road-item" onclick="flyToAnomaly(${a.lat},${a.lon},${a.ri})">
+            <div class="dot ${dotClass}"></div>
+            <div style="flex:1"><div class="r-name">${a.type}</div><div class="r-sub">${a.road} · ${a.pos}m · ${detLabel}</div></div>
+            <span class="r-pct ${pctClass}">${(a.sev*100).toFixed(0)}%</span>
+        </div>`;
+    });
+    el.innerHTML = html;
+    document.getElementById('anomaly-count').textContent = anomalies.length + ' detected';
+}
+
+function flyToAnomaly(lat, lon, ri) {
+    map.flyTo({ center: [lon, lat], zoom: 16, duration: 1000 });
+    selectRoad(ri);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -418,23 +394,11 @@ function selectRoad(idx) {
     renderDetail();
 }
 
-function setupSliders() {
-    [{s:'s1',v:'v1',ri:1,ai:0},{s:'s2',v:'v2',ri:1,ai:1},{s:'s3',v:'v3',ri:0,ai:0}].forEach(c => {
-        document.getElementById(c.s).addEventListener('input', function() {
-            document.getElementById(c.v).textContent = this.value + '%';
-            roads[c.ri].anomalies[c.ai].sev = this.value / 100;
-            if (map && map.isStyleLoaded()) renderMapOverlays();
-            renderList();
-            renderDetail();
-        });
-    });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
     initMap();
     renderList();
+    renderAnomalies();
     renderDetail();
-    setupSliders();
 });
 </script>
 </body>
